@@ -11,7 +11,13 @@
 """
 import os
 import struct
+import sys
 import zlib
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 SIZE = 1024
 SS = 4  # 超采样倍数（抗锯齿）
@@ -171,7 +177,7 @@ def main():
     base = render(SIZE)
     appicon = os.path.join(ROOT, "build", "appicon.png")
     size_bytes = write_png(appicon, SIZE, base)
-    print(f"生成 {appicon}（{SIZE}x{SIZE}, {size_bytes} 字节）")
+    print(f"wrote {appicon} ({SIZE}x{SIZE}, {size_bytes} bytes)")
 
     # 每个尺寸单独渲染（几何清晰，避免放大模糊）
     ico_dir = os.path.join(ROOT, "build", "windows")
@@ -185,7 +191,7 @@ def main():
         os.remove(tmp)
     ico_path = os.path.join(ico_dir, "icon.ico")
     write_ico(ico_path, frames)
-    print(f"生成 {ico_path}（{len(frames)} 个尺寸：{[s for s, _ in frames]}）")
+    print(f"wrote {ico_path} ({len(frames)} sizes: {[s for s, _ in frames]})")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,16 @@
+# 生成物与本地环境
+.DS_Store
+.idea/
+*.log
+
+# Wails
+frontend/node_modules/
+# 前端构建产物：保留 dist/.gitkeep，保证未构建前端时 go:embed 仍能编译
+frontend/dist/*
+!frontend/dist/.gitkeep
+build/bin/
+
+# POC 运行产物（证据副本已放在 docs/phase1/evidence/）
+poc/docx-eval/out/
+poc/docx-eval/lout/
+__pycache__/

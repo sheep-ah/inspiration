@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "灵感",
+  "outputfilename": "灵感",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "身边云",
+    "email": ""
+  },
+  "info": {
+    "companyName": "身边云",
+    "productName": "灵感",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 身边云",
+    "comments": "本地合同生成工具（DOCX 模板占位符替换）"
+  }
+}

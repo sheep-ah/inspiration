@@ -1,0 +1,228 @@
+{
+  "adapters": [
+    {
+      "adapter": "engine(自研)",
+      "template": "template_simple.docx",
+      "ok": true,
+      "error": "",
+      "notes": null,
+      "outputFile": "../out/engine__template_simple.docx",
+      "panic": false
+    },
+    {
+      "adapter": "engine(自研)",
+      "template": "template_structures.docx",
+      "ok": true,
+      "error": "",
+      "notes": null,
+      "outputFile": "../out/engine__template_structures.docx",
+      "panic": false
+    },
+    {
+      "adapter": "engine(自研)",
+      "template": "template_split_runs.docx",
+      "ok": true,
+      "error": "",
+      "notes": null,
+      "outputFile": "../out/engine__template_split_runs.docx",
+      "panic": false
+    },
+    {
+      "adapter": "nguyenthenguyen/docx",
+      "template": "template_simple.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "法人代表: 未匹配(片段被拆分)",
+        "实际经营地址: 未匹配(片段被拆分)",
+        "纳税人识别号: 未匹配(片段被拆分)",
+        "电话: 未匹配(片段被拆分)",
+        "开户银行: 未匹配(片段被拆分)",
+        "账户号: 未匹配(片段被拆分)",
+        "开票地址: 未匹配(片段被拆分)",
+        "页眉/页脚需单独调用 ReplaceHeader/ReplaceFooter（本测试未调用）",
+        "脚注/文本框部件不在处理范围内"
+      ],
+      "outputFile": "../out/nguyen__template_simple.docx",
+      "panic": false
+    },
+    {
+      "adapter": "nguyenthenguyen/docx",
+      "template": "template_structures.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "页眉/页脚需单独调用 ReplaceHeader/ReplaceFooter（本测试未调用）",
+        "脚注/文本框部件不在处理范围内"
+      ],
+      "outputFile": "../out/nguyen__template_structures.docx",
+      "panic": false
+    },
+    {
+      "adapter": "nguyenthenguyen/docx",
+      "template": "template_split_runs.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "法人代表: 未匹配(片段被拆分)",
+        "实际经营地址: 未匹配(片段被拆分)",
+        "纳税人识别号: 未匹配(片段被拆分)",
+        "账户号: 未匹配(片段被拆分)",
+        "页眉/页脚需单独调用 ReplaceHeader/ReplaceFooter（本测试未调用）",
+        "脚注/文本框部件不在处理范围内"
+      ],
+      "outputFile": "../out/nguyen__template_split_runs.docx",
+      "panic": false
+    },
+    {
+      "adapter": "lukasjarosch/go-docx",
+      "template": "template_simple.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "联系人姓名: not all placeholders were replaced, want=1, have=0",
+        "联系人邮箱: not all placeholders were replaced, want=1, have=0",
+        "营业执照名称: not all placeholders were replaced, want=1, have=0",
+        "解析到占位符 0 个: "
+      ],
+      "outputFile": "../out/lukas__template_simple.docx",
+      "panic": false
+    },
+    {
+      "adapter": "lukasjarosch/go-docx",
+      "template": "template_structures.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "联系人姓名: not all placeholders were replaced, want=5, have=0",
+        "法人代表: not all placeholders were replaced, want=2, have=0",
+        "实际经营地址: not all placeholders were replaced, want=1, have=0",
+        "联系人邮箱: not all placeholders were replaced, want=1, have=0",
+        "营业执照名称: not all placeholders were replaced, want=1, have=0",
+        "纳税人识别号: not all placeholders were replaced, want=1, have=0",
+        "电话: not all placeholders were replaced, want=1, have=0",
+        "开户银行: not all placeholders were replaced, want=1, have=0",
+        "账户号: not all placeholders were replaced, want=2, have=0",
+        "开票地址: not all placeholders were replaced, want=2, have=0",
+        "解析到占位符 0 个: "
+      ],
+      "outputFile": "../out/lukas__template_structures.docx",
+      "panic": false
+    },
+    {
+      "adapter": "lukasjarosch/go-docx",
+      "template": "template_split_runs.docx",
+      "ok": false,
+      "error": "panic: runtime error: index out of range [0] with length 0",
+      "notes": [],
+      "outputFile": "../out/lukas__template_split_runs.docx",
+      "panic": true
+    },
+    {
+      "adapter": "gomutex/godocx(open+save)",
+      "template": "template_simple.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "godocx 未提供占位符替换 API，本项只测「打开→原样保存」的保真度"
+      ],
+      "outputFile": "../out/godocx__template_simple.docx",
+      "panic": false
+    },
+    {
+      "adapter": "gomutex/godocx(open+save)",
+      "template": "template_structures.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "godocx 未提供占位符替换 API，本项只测「打开→原样保存」的保真度"
+      ],
+      "outputFile": "../out/godocx__template_structures.docx",
+      "panic": false
+    },
+    {
+      "adapter": "gomutex/godocx(open+save)",
+      "template": "template_split_runs.docx",
+      "ok": true,
+      "error": "",
+      "notes": [
+        "godocx 未提供占位符替换 API，本项只测「打开→原样保存」的保真度"
+      ],
+      "outputFile": "../out/godocx__template_split_runs.docx",
+      "panic": false
+    }
+  ],
+  "inspect": {
+    "block_template_unclosed.docx": "engine.Render = 模板中存在未闭合的占位符（word/document.xml）：\"跨段落：{{联系\" | 输出文件是否生成=false",
+    "block_template_unknown.docx": "engine.Render = 模板中存在不支持的占位符 {{不存在字段}}（word/document.xml） | 输出文件是否生成=false",
+    "block_template_unsafe.docx": "engine.Render = 占位符 {{联系人姓名}} 被换行/制表符等元素打断，无法安全替换（word/document.xml） | 输出文件是否生成=false",
+    "godocx_partdiff_template_simple.docx": [
+      "内容变化: word/document.xml (1705 -\u003e 1298 字节)",
+      "内容变化: word/styles.xml (349458 -\u003e 396415 字节)",
+      "内容变化: _rels/.rels (734 -\u003e 773 字节)",
+      "内容变化: word/_rels/document.xml.rels (1227 -\u003e 1322 字节)",
+      "内容变化: [Content_Types].xml (1738 -\u003e 1858 字节)"
+    ],
+    "godocx_partdiff_template_split_runs.docx": [
+      "内容变化: word/_rels/document.xml.rels (1626 -\u003e 1763 字节)",
+      "内容变化: word/styles.xml (349458 -\u003e 396415 字节)",
+      "内容变化: _rels/.rels (734 -\u003e 773 字节)",
+      "内容变化: [Content_Types].xml (2127 -\u003e 2277 字节)",
+      "内容变化: word/document.xml (7343 -\u003e 5906 字节)"
+    ],
+    "godocx_partdiff_template_structures.docx": [
+      "内容变化: word/_rels/document.xml.rels (1626 -\u003e 1763 字节)",
+      "内容变化: word/styles.xml (349458 -\u003e 396415 字节)",
+      "内容变化: _rels/.rels (734 -\u003e 773 字节)",
+      "内容变化: word/document.xml (5723 -\u003e 4266 字节)",
+      "内容变化: [Content_Types].xml (2127 -\u003e 2277 字节)"
+    ],
+    "template_broken_xml.docx": {
+      "error": "word/document.xml: XML 解析失败: XML syntax error on line 21: unexpected EOF"
+    },
+    "template_broken_zip.docx": {
+      "error": "该文件不是有效的 DOCX（DOCX 必须是 zip 包结构）"
+    },
+    "template_simple.docx": {
+      "blockErrors": null,
+      "found": 3,
+      "parts": [
+        "word/document.xml"
+      ],
+      "unclosed": [],
+      "unknown": [],
+      "unsafe": []
+    },
+    "template_split_runs.docx": {
+      "blockErrors": null,
+      "found": 23,
+      "parts": [
+        "word/document.xml",
+        "word/header1.xml",
+        "word/footer1.xml",
+        "word/footnotes.xml"
+      ],
+      "unclosed": [],
+      "unknown": [],
+      "unsafe": []
+    },
+    "template_structures.docx": {
+      "blockErrors": null,
+      "found": 23,
+      "parts": [
+        "word/document.xml",
+        "word/header1.xml",
+        "word/footer1.xml",
+        "word/footnotes.xml"
+      ],
+      "unclosed": [],
+      "unknown": [],
+      "unsafe": []
+    }
+  },
+  "templates": [
+    "template_simple.docx",
+    "template_structures.docx",
+    "template_split_runs.docx"
+  ]
+}

@@ -1,0 +1,1404 @@
+[
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {
+     "营业执照名称": 1,
+     "联系人姓名": 1,
+     "联系人邮箱": 1
+    },
+    "leftovers": []
+   }
+  },
+  "changed_parts": [
+   "word/document.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 1,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [],
+  "unknown_left": false,
+  "adapter": "engine",
+  "template": "template_simple.docx",
+  "expected": {
+   "联系人姓名": 1,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "lo_error": null,
+  "lo_has_placeholder": false,
+  "lo_values": {
+   "联系人邮箱": 1
+  }
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {
+     "联系人姓名": 5,
+     "法人代表": 2,
+     "实际经营地址": 1,
+     "营业执照名称": 1,
+     "纳税人识别号": 1,
+     "联系人邮箱": 1,
+     "电话": 3,
+     "开户银行": 1,
+     "账户号": 2,
+     "开票地址": 3
+    },
+    "leftovers": []
+   },
+   "word/header1.xml": {
+    "values": {
+     "联系人姓名": 1,
+     "营业执照名称": 1
+    },
+    "leftovers": []
+   },
+   "word/footer1.xml": {
+    "values": {
+     "联系人邮箱": 1,
+     "电话": 1
+    },
+    "leftovers": []
+   },
+   "word/footnotes.xml": {
+    "values": {
+     "电话": 1
+    },
+    "leftovers": []
+   }
+  },
+  "changed_parts": [
+   "word/document.xml",
+   "word/header1.xml",
+   "word/footer1.xml",
+   "word/footnotes.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "leftover": [],
+  "unknown_left": false,
+  "adapter": "engine",
+  "template": "template_split_runs.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": false,
+  "lo_values": {
+   "联系人邮箱": 2,
+   "纳税人识别号": 1,
+   "电话": 4,
+   "账户号": 2
+  }
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {
+     "联系人姓名": 5,
+     "法人代表": 2,
+     "实际经营地址": 1,
+     "营业执照名称": 1,
+     "纳税人识别号": 1,
+     "联系人邮箱": 1,
+     "电话": 3,
+     "开户银行": 1,
+     "账户号": 2,
+     "开票地址": 3
+    },
+    "leftovers": []
+   },
+   "word/header1.xml": {
+    "values": {
+     "联系人姓名": 1,
+     "营业执照名称": 1
+    },
+    "leftovers": []
+   },
+   "word/footer1.xml": {
+    "values": {
+     "联系人邮箱": 1,
+     "电话": 1
+    },
+    "leftovers": []
+   },
+   "word/footnotes.xml": {
+    "values": {
+     "电话": 1
+    },
+    "leftovers": []
+   }
+  },
+  "changed_parts": [
+   "word/document.xml",
+   "word/header1.xml",
+   "word/footer1.xml",
+   "word/footnotes.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "leftover": [],
+  "unknown_left": false,
+  "adapter": "engine",
+  "template": "template_structures.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": false,
+  "lo_values": {
+   "联系人邮箱": 2,
+   "纳税人识别号": 1,
+   "电话": 4,
+   "账户号": 2
+  }
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/document.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人邮箱}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [
+   "[Content_Types].xml",
+   "_rels/.rels",
+   "word/document.xml",
+   "word/_rels/document.xml.rels",
+   "word/styles.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 0,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 0,
+   "营业执照名称": 0,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [
+   [
+    "word/document.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人邮箱}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "godocx",
+  "template": "template_simple.docx",
+  "expected": {
+   "联系人姓名": 1,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {}
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ],
+     [
+      "word/document.xml",
+      "{{实际经营地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/document.xml",
+      "{{纳税人识别号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/document.xml",
+      "{{电话}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开户银行}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开票地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ]
+    ]
+   },
+   "word/footer1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footer1.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/footer1.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/footnotes.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footnotes.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/header1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/header1.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/header1.xml",
+      "{{联系人姓名}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [
+   "[Content_Types].xml",
+   "_rels/.rels",
+   "word/document.xml",
+   "word/_rels/document.xml.rels",
+   "word/styles.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 0,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 0,
+   "营业执照名称": 0,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/document.xml",
+    "{{实际经营地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/document.xml",
+    "{{纳税人识别号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/document.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开户银行}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开票地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/footnotes.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{联系人姓名}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "godocx",
+  "template": "template_split_runs.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {}
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ],
+     [
+      "word/document.xml",
+      "{{实际经营地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/document.xml",
+      "{{纳税人识别号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/document.xml",
+      "{{电话}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开户银行}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开票地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ]
+    ]
+   },
+   "word/footer1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footer1.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/footer1.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/footnotes.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footnotes.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/header1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/header1.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/header1.xml",
+      "{{联系人姓名}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [
+   "[Content_Types].xml",
+   "_rels/.rels",
+   "word/document.xml",
+   "word/_rels/document.xml.rels",
+   "word/styles.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 0,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 0,
+   "营业执照名称": 0,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/document.xml",
+    "{{实际经营地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/document.xml",
+    "{{纳税人识别号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/document.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开户银行}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开票地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/footnotes.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{联系人姓名}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "godocx",
+  "template": "template_structures.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {}
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/document.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人邮箱}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [],
+  "values_ok": {
+   "联系人姓名": 0,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 0,
+   "营业执照名称": 0,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [
+   [
+    "word/document.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人邮箱}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "lukas",
+  "template": "template_simple.docx",
+  "expected": {
+   "联系人姓名": 1,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {}
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ],
+     [
+      "word/document.xml",
+      "{{实际经营地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/document.xml",
+      "{{纳税人识别号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/document.xml",
+      "{{电话}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开户银行}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开票地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{电话}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ],
+     [
+      "word/document.xml",
+      "{{电话}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开票地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开票地址}}"
+     ]
+    ]
+   },
+   "word/header1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/header1.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/header1.xml",
+      "{{联系人姓名}}"
+     ]
+    ]
+   },
+   "word/footer1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footer1.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/footer1.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/footnotes.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footnotes.xml",
+      "{{电话}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [],
+  "values_ok": {
+   "联系人姓名": 0,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 0,
+   "营业执照名称": 0,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/document.xml",
+    "{{实际经营地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/document.xml",
+    "{{纳税人识别号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/document.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开户银行}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开票地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/document.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开票地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开票地址}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/footnotes.xml",
+    "{{电话}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "lukas",
+  "template": "template_structures.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {}
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {
+     "营业执照名称": 1,
+     "联系人姓名": 1,
+     "联系人邮箱": 1
+    },
+    "leftovers": []
+   }
+  },
+  "changed_parts": [
+   "word/document.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 1,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "leftover": [],
+  "unknown_left": false,
+  "adapter": "nguyen",
+  "template": "template_simple.docx",
+  "expected": {
+   "联系人姓名": 1,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 0,
+   "开户银行": 0,
+   "账户号": 0,
+   "开票地址": 0
+  },
+  "lo_error": null,
+  "lo_has_placeholder": false,
+  "lo_values": {
+   "联系人邮箱": 1
+  }
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {
+     "营业执照名称": 1,
+     "联系人邮箱": 1,
+     "电话": 3,
+     "开户银行": 1,
+     "联系人姓名": 2,
+     "开票地址": 2
+    },
+    "leftovers": [
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ],
+     [
+      "word/document.xml",
+      "{{实际经营地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{纳税人识别号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{开票地址}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{联系人姓名}}"
+     ],
+     [
+      "word/document.xml",
+      "{{账户号}}"
+     ],
+     [
+      "word/document.xml",
+      "{{法人代表}}"
+     ]
+    ]
+   },
+   "word/header1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/header1.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/header1.xml",
+      "{{联系人姓名}}"
+     ]
+    ]
+   },
+   "word/footer1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footer1.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/footer1.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/footnotes.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footnotes.xml",
+      "{{电话}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [
+   "word/document.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 2,
+   "法人代表": 0,
+   "实际经营地址": 0,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 0,
+   "电话": 3,
+   "开户银行": 1,
+   "账户号": 0,
+   "开票地址": 2
+  },
+  "leftover": [
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/document.xml",
+    "{{实际经营地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{纳税人识别号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{开票地址}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/document.xml",
+    "{{账户号}}"
+   ],
+   [
+    "word/document.xml",
+    "{{法人代表}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/footnotes.xml",
+    "{{电话}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "nguyen",
+  "template": "template_split_runs.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {
+   "联系人邮箱": 1,
+   "电话": 2
+  }
+ },
+ {
+  "parts": {
+   "word/document.xml": {
+    "values": {
+     "联系人姓名": 5,
+     "法人代表": 2,
+     "实际经营地址": 1,
+     "营业执照名称": 1,
+     "纳税人识别号": 1,
+     "联系人邮箱": 1,
+     "电话": 3,
+     "开户银行": 1,
+     "账户号": 2,
+     "开票地址": 3
+    },
+    "leftovers": []
+   },
+   "word/header1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/header1.xml",
+      "{{营业执照名称}}"
+     ],
+     [
+      "word/header1.xml",
+      "{{联系人姓名}}"
+     ]
+    ]
+   },
+   "word/footer1.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footer1.xml",
+      "{{联系人邮箱}}"
+     ],
+     [
+      "word/footer1.xml",
+      "{{电话}}"
+     ]
+    ]
+   },
+   "word/footnotes.xml": {
+    "values": {},
+    "leftovers": [
+     [
+      "word/footnotes.xml",
+      "{{电话}}"
+     ]
+    ]
+   }
+  },
+  "changed_parts": [
+   "word/document.xml"
+  ],
+  "values_ok": {
+   "联系人姓名": 5,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 1,
+   "营业执照名称": 1,
+   "纳税人识别号": 1,
+   "电话": 3,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "leftover": [
+   [
+    "word/header1.xml",
+    "{{营业执照名称}}"
+   ],
+   [
+    "word/header1.xml",
+    "{{联系人姓名}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{联系人邮箱}}"
+   ],
+   [
+    "word/footer1.xml",
+    "{{电话}}"
+   ],
+   [
+    "word/footnotes.xml",
+    "{{电话}}"
+   ]
+  ],
+  "unknown_left": false,
+  "adapter": "nguyen",
+  "template": "template_structures.docx",
+  "expected": {
+   "联系人姓名": 6,
+   "法人代表": 2,
+   "实际经营地址": 1,
+   "联系人邮箱": 2,
+   "营业执照名称": 2,
+   "纳税人识别号": 1,
+   "电话": 5,
+   "开户银行": 1,
+   "账户号": 2,
+   "开票地址": 3
+  },
+  "lo_error": null,
+  "lo_has_placeholder": true,
+  "lo_values": {
+   "联系人邮箱": 1,
+   "纳税人识别号": 1,
+   "电话": 2,
+   "账户号": 2
+  }
+ }
+]

@@ -192,8 +192,11 @@ jobs:
             Where-Object { $_.Name -notlike "*installer*" } |
             Select-Object -First 1
           if (-not $exe) { throw "executable not found" }
-          & $exe.FullName --selfcheck --data-dir "$env:RUNNER_TEMP\insp-rel-smoke"
-          if ($LASTEXITCODE -ne 0) { throw "selfcheck failed (exit code $LASTEXITCODE)" }
+          # GUI 子系统的 exe 必须用 Start-Process -Wait 才能拿到退出码
+          $proc = Start-Process -FilePath $exe.FullName `
+            -ArgumentList @("--selfcheck", "--data-dir", "$env:RUNNER_TEMP\insp-rel-smoke") `
+            -Wait -PassThru -NoNewWindow
+          if ($proc.ExitCode -ne 0) { throw "selfcheck failed (exit code $($proc.ExitCode))" }
           $v = $exe.VersionInfo.ProductVersion
           Write-Host "artifact product version: $v"
           if ($v -ne "${{ needs.validate.outputs.version }}") {

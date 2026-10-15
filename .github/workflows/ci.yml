@@ -203,8 +203,14 @@ jobs:
             Select-Object -First 1
           if (-not $exe) { throw "executable not found" }
           Write-Host "smoke test target: $($exe.FullName)"
-          & $exe.FullName --selfcheck --data-dir "$env:RUNNER_TEMP\insp-smoke"
-          if ($LASTEXITCODE -ne 0) { throw "selfcheck failed (exit code $LASTEXITCODE)" }
+          # 注意：GUI 子系统的 exe 用 & 调用时 PowerShell 不会等待，$LASTEXITCODE 也可能是空值，
+          # 必须用 Start-Process -Wait -PassThru 取真实退出码。
+          $proc = Start-Process -FilePath $exe.FullName `
+            -ArgumentList @("--selfcheck", "--data-dir", "$env:RUNNER_TEMP\insp-smoke") `
+            -Wait -PassThru -NoNewWindow
+          Write-Host "product version: $($exe.VersionInfo.ProductVersion)"
+          Write-Host "selfcheck exit code: $($proc.ExitCode)"
+          if ($proc.ExitCode -ne 0) { throw "selfcheck failed (exit code $($proc.ExitCode))" }
           $v = $exe.VersionInfo.ProductVersion
           Write-Host "artifact product version: $v"
           if (-not $v) { throw "artifact has no version resource" }

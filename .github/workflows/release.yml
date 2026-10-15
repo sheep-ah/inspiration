@@ -1,0 +1,393 @@
+name: Release
+
+# 正式发布：推送形如 v1.2.3 的标签触发。
+# 流程：校验标签 → 跑测试 → 三平台原生构建 → 计算校验和 → 以 draft 创建 Release →
+#       校验资产齐全 → 转为正式发布。任何一步失败都不会产出"残缺的正式版本"。
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION_FILE: go.mod
+  NODE_VERSION: "20"
+  WAILS_VERSION: v2.16.0
+
+jobs:
+  # ---------------------------------------------------------------- 标签校验
+  validate:
+    name: 校验标签与版本号
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 校验标签格式与所属分支
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -e
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::标签格式不合法：$TAG（要求 vX.Y.Z，例如 v1.0.0）"
+            exit 1
+          fi
+          version="${TAG#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "✔ 标签格式通过：$TAG"
+
+          # 标签对应的提交必须在 main 上（避免从功能分支直接发布）
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::标签提交不在 main 分支上，禁止发布"
+            exit 1
+          fi
+          echo "✔ 标签提交在 main 分支上"
+
+          # 版本号必须与代码中的版本一致（wails.json 会在构建前被写入，这里检查源码基线是否已同步）
+          current=$(python3 -c "import json;print(json.load(open('wails.json'))['info']['productVersion'])")
+          echo "wails.json 当前版本：$current（构建时会写入 $version）"
+
+  # ---------------------------------------------------------------- 测试门禁
+  test:
+    name: 测试门禁
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 构建前端
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: 前端产物与源码一致
+        run: |
+          if ! git diff --quiet -- frontend/dist; then
+            echo "::error::frontend/dist 与源码不一致，请先提交前端构建产物"
+            exit 1
+          fi
+      - name: 单元测试与端到端测试
+        run: go test ./... -count=1 -timeout 15m
+      - name: go vet 与 staticcheck
+        run: |
+          go vet ./...
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+  # ---------------------------------------------------------------- 三平台构建
+  build:
+    name: 构建 ${{ matrix.name }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-amd64
+            os: windows-latest
+            platform: windows/amd64
+          - name: darwin-arm64
+            os: macos-14
+            platform: darwin/arm64
+          - name: darwin-amd64
+            os: macos-14
+            platform: darwin/amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装 Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: 安装 NSIS（Windows 打包）
+        if: runner.os == 'Windows'
+        run: choco install nsis -y --no-progress
+
+      - name: 写入版本号（与应用内版本、Release 标签保持一致）
+        shell: bash
+        run: |
+          set -e
+          if command -v python3 >/dev/null 2>&1; then py=python3; else py=python; fi
+          "$py" scripts/set-version.py "${{ needs.validate.outputs.version }}"
+
+      - name: 构建（Windows：便携版 + NSIS 安装包）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          wails build -platform ${{ matrix.platform }} -nsis -installscope user -webview2 embed `
+            -ldflags "-X github.com/sheep-ah/inspiration/internal/version.Version=${{ github.ref_name }}"
+
+      - name: 构建（macOS）
+        if: runner.os == 'macOS'
+        run: |
+          wails build -platform ${{ matrix.platform }} \
+            -ldflags "-X github.com/sheep-ah/inspiration/internal/version.Version=${{ github.ref_name }}"
+
+      - name: 冒烟测试与版本校验（macOS）
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          bin="./build/bin/灵感.app/Contents/MacOS/灵感"
+          out=$("$bin" --version)
+          echo "产物报告版本：$out"
+          case "$out" in
+            *"${{ github.ref_name }}"*) echo "✔ 版本号与标签一致";;
+            *) echo "::error::产物版本（$out）与标签（${{ github.ref_name }}）不一致"; exit 1;;
+          esac
+          "$bin" --selfcheck --data-dir "$RUNNER_TEMP/insp-rel-smoke"
+
+      - name: 冒烟测试与版本校验（Windows：GUI 子系统无 stdout）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "./build/bin/灵感.exe" --selfcheck --data-dir "$env:RUNNER_TEMP\insp-rel-smoke"
+          if ($LASTEXITCODE -ne 0) { throw "自检失败（退出码 $LASTEXITCODE）" }
+          $v = (Get-Item "./build/bin/灵感.exe").VersionInfo.ProductVersion
+          Write-Host "产物版本资源：$v"
+          if ($v -ne "${{ needs.validate.outputs.version }}") {
+            throw "产物版本资源（$v）与标签（${{ needs.validate.outputs.version }}）不一致"
+          }
+          Write-Host "✔ 版本号与标签一致，且可正常启动"
+
+      - name: 打包正式产物（macOS）
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          version="${{ needs.validate.outputs.version }}"
+          arch="${{ matrix.name }}"
+          mkdir -p dist
+          ditto -c -k --keepParent "build/bin/灵感.app" "dist/inspiration_${version}_${arch}.zip"
+          hdiutil create -volname "灵感" -srcfolder "build/bin/灵感.app" -ov -format UDZO \
+            "dist/inspiration_${version}_${arch}.dmg"
+          ls -la dist
+
+      - name: 打包正式产物（Windows）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ needs.validate.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "build/bin/灵感.exe" "dist/inspiration_${version}_windows_amd64_portable.exe"
+          $installer = Get-ChildItem "build/bin/*installer.exe" | Select-Object -First 1
+          if (-not $installer) { throw "未找到 NSIS 安装包，禁止发布" }
+          Copy-Item $installer.FullName "dist/inspiration_${version}_windows_amd64_setup.exe"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: 产物自检（数量与体积）
+        shell: bash
+        run: |
+          set -e
+          expect=1
+          [ "${{ runner.os }}" = "macOS" ] && expect=2
+          count=$(find dist -maxdepth 1 -type f | wc -l | tr -d ' ')
+          echo "产物数量：$count（期望 $expect）"
+          ls -la dist
+          [ "$count" -eq "$expect" ] || { echo "::error::产物数量不符"; exit 1; }
+          for f in dist/*; do
+            size=$(wc -c <"$f" | tr -d ' ')
+            [ "$size" -ge 100000 ] || { echo "::error::$f 体积异常（$size 字节）"; exit 1; }
+          done
+          echo "✔ 产物自检通过"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------- 发布
+  publish:
+    name: 发布到 GitHub Releases
+    needs: [validate, test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: 校验所有平台产物齐全（缺一个就整单失败）
+        run: |
+          set -e
+          version="${{ needs.validate.outputs.version }}"
+          echo "== 资产清单 =="
+          ls -la artifacts
+          fail=0
+          for name in \
+            "inspiration_${version}_windows_amd64_setup.exe" \
+            "inspiration_${version}_windows_amd64_portable.exe" \
+            "inspiration_${version}_darwin_arm64.zip" \
+            "inspiration_${version}_darwin_arm64.dmg" \
+            "inspiration_${version}_darwin_amd64.zip" \
+            "inspiration_${version}_darwin_amd64.dmg"; do
+            if [ ! -f "artifacts/$name" ]; then echo "::error::缺少 $name"; fail=1; fi
+          done
+          [ "$fail" -eq 0 ] || { echo "::error::资产不齐全，禁止发布"; exit 1; }
+          echo "✔ 六项资产齐全"
+
+      - name: 计算校验和并生成 latest.json
+        run: |
+          set -e
+          version="${{ needs.validate.outputs.version }}"
+          tag="${{ github.ref_name }}"
+          cd artifacts
+          # 稳定的顺序，方便比对
+          for f in *; do
+            case "$f" in checksums.txt|latest.json) continue;; esac
+            echo "$f"
+          done | sort > /tmp/asset-list.txt
+          : > checksums.txt
+          while read -r f; do shasum -a 256 "$f" >> checksums.txt; done < /tmp/asset-list.txt
+          echo "== checksums.txt =="; cat checksums.txt
+
+          python3 - "$version" "$tag" <<'PY'
+          import json, os, sys, hashlib
+          version, tag = sys.argv[1], sys.argv[2]
+          def meta(name):
+              os_name = "windows" if "windows" in name else "darwin"
+              arch = "amd64" if "amd64" in name else ("arm64" if "arm64" in name else "")
+              kind = ("installer" if name.endswith("_setup.exe")
+                      else "portable" if name.endswith("_portable.exe")
+                      else "dmg" if name.endswith(".dmg") else "zip")
+              return os_name, arch, kind
+          assets = []
+          for name in sorted(os.listdir(".")):
+              if name in ("checksums.txt", "latest.json"):
+                  continue
+              with open(name, "rb") as fh:
+                  digest = hashlib.sha256(fh.read()).hexdigest()
+              os_name, arch, kind = meta(name)
+              assets.append({
+                  "name": name, "os": os_name, "arch": arch, "kind": kind,
+                  "sha256": digest, "size": os.path.getsize(name),
+              })
+          payload = {
+              "version": version,
+              "tag": tag,
+              "releaseUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/tag/{tag}",
+              "assetsUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}",
+              "assets": assets,
+          }
+          with open("latest.json", "w", encoding="utf-8") as fh:
+              json.dump(payload, fh, ensure_ascii=False, indent=2)
+          print(json.dumps(payload, ensure_ascii=False, indent=2))
+          PY
+
+      - name: 生成更新说明
+        run: |
+          set -e
+          tag="${{ github.ref_name }}"
+          prev=$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)
+          {
+            echo "# 灵感 ${tag}"
+            echo ""
+            echo "## 本次更新"
+            echo ""
+            if [ -n "$prev" ]; then
+              git log --pretty=format:'- %s' "${prev}..${tag}" | grep -v '^- chore(release)' || true
+              echo ""
+              echo ""
+              echo "> 与上一版本对比：\`${prev}...${tag}\`"
+            else
+              git log --pretty=format:'- %s' "${tag}" | head -50
+              echo ""
+              echo ""
+              echo "> 首个正式版本"
+            fi
+            echo ""
+            echo "## 安装包"
+            echo ""
+            echo "| 平台 | 文件 |"
+            echo "|---|---|"
+            echo "| Windows x64 | \`inspiration_${tag#v}_windows_amd64_setup.exe\`（安装版） / \`..._portable.exe\`（免安装） |"
+            echo "| macOS Apple Silicon | \`inspiration_${tag#v}_darwin_arm64.dmg\`（或 .zip） |"
+            echo "| macOS Intel | \`inspiration_${tag#v}_darwin_amd64.dmg\`（或 .zip） |"
+            echo ""
+            echo "## 完整性校验"
+            echo ""
+            echo "下载后可用 \`checksums.txt\` 中的 SHA256 校验文件完整性；应用内更新也依赖同一份校验和。"
+            echo ""
+            echo "## 说明"
+            echo ""
+            echo "- 应用默认本地处理，不上传合同内容与模板文件。"
+            echo "- 安装包未做代码签名/公证：macOS 首次打开需右键「打开」；Windows 可能提示 SmartScreen。"
+          } > /tmp/release-notes.md
+          echo "== 更新说明 =="; cat /tmp/release-notes.md
+
+      - name: 以 draft 创建 Release 并上传资产
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          gh release create "${{ github.ref_name }}" \
+            --draft \
+            --verify-tag \
+            --title "灵感 ${{ github.ref_name }}" \
+            --notes-file /tmp/release-notes.md \
+            artifacts/*
+
+      - name: 校验已上传资产数量后再正式发布
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          tag="${{ github.ref_name }}"
+          count=$(gh release view "$tag" --json assets --jq '.assets | length')
+          echo "已上传资产数量：$count（期望 8：6 个安装包 + checksums.txt + latest.json）"
+          if [ "$count" -ne 8 ]; then
+            echo "::error::资产数量不符，保持 draft 状态，不发布"
+            exit 1
+          fi
+          gh release edit "$tag" --draft=false
+          echo "✔ 已正式发布：$tag"
+          gh release view "$tag" --json url,assets --jq '.url'
+
+      - name: 输出发布结果
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "## 发布完成：${{ github.ref_name }}"
+            echo ""
+            IFS=$'\n'
+            # shellcheck disable=SC2016  # jq 表达式中的反引号是 Markdown 字面量
+            for line in $(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[] | "- `\(.name)`（\(.size) 字节）"'); do
+              echo "$line"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

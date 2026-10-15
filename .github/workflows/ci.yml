@@ -1,0 +1,274 @@
+name: CI
+
+# 推送 main 与 PR 时：格式检查、静态分析、单元测试、三平台原生构建并保存产物。
+# 普通提交只产出 CI Artifact，不发布正式版本（正式发布见 release.yml）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支的新提交取消上一次未完成的运行
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION_FILE: go.mod
+  NODE_VERSION: "20"
+  WAILS_VERSION: v2.16.0
+  APP_NAME: 灵感
+
+jobs:
+  # ---------------------------------------------------------------- 代码质量
+  lint:
+    name: 格式检查与静态分析
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: gofmt 检查
+        run: |
+          files=$(git ls-files --cached --others --exclude-standard '*.go' | grep -v '^poc/' || true)
+          if [ -z "$files" ]; then echo "没有 Go 文件"; exit 0; fi
+          # shellcheck disable=SC2086  # 需要按空白拆分成多个文件参数
+          unformatted=$(gofmt -l $files)
+          if [ -n "$unformatted" ]; then echo "以下文件未格式化："; echo "$unformatted"; exit 1; fi
+          echo "✔ gofmt 通过"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+      - name: 前端类型检查与构建
+        working-directory: frontend
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run build
+
+      - name: 前端产物是否与源码一致（防止忘记提交构建产物）
+        run: |
+          if ! git diff --quiet -- frontend/dist; then
+            echo "::error::frontend/dist 与源码不一致，请在本地执行 'cd frontend && npm run build' 并提交产物"
+            git --no-pager diff --stat -- frontend/dist
+            exit 1
+          fi
+          echo "✔ 前端构建产物与源码一致"
+
+  # ---------------------------------------------------------------- 单元测试
+  test:
+    name: 单元测试与端到端测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 构建前端（go:embed 需要 frontend/dist）
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: go test
+        run: go test ./... -count=1 -timeout 15m
+
+      - name: 竞态检测（核心包）
+        run: go test -race ./internal/docx/ ./internal/store/ -count=1
+
+      - name: 性能基准（防止数量级退化）
+        run: go test ./internal/docx/ -bench . -benchtime 3x -run XXX
+
+  # ---------------------------------------------------------------- 三平台构建
+  build:
+    name: 构建 ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-amd64
+            os: windows-latest
+            platform: windows/amd64
+            artifact: inspiration_ci_windows_amd64
+          - name: darwin-arm64
+            os: macos-14          # Apple Silicon runner
+            platform: darwin/arm64
+            artifact: inspiration_ci_darwin_arm64
+          - name: darwin-amd64
+            os: macos-14          # 在 arm64 上交叉编译 Intel 版本
+            platform: darwin/amd64
+            artifact: inspiration_ci_darwin_amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装 Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: 安装 NSIS（Windows 打包）
+        if: runner.os == 'Windows'
+        run: choco install nsis -y --no-progress
+
+      - name: 构建（Windows：NSIS 安装包）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python scripts/set-version.py 0.0.0
+          if ($LASTEXITCODE -ne 0) { throw "写入版本号失败" }
+          wails build -platform ${{ matrix.platform }} -nsis -installscope user -webview2 embed `
+            -ldflags "-X github.com/sheep-ah/inspiration/internal/version.Version=dev-${{ github.sha }}"
+
+      - name: 构建（macOS）
+        if: runner.os == 'macOS'
+        run: |
+          python3 scripts/set-version.py 0.0.0
+          wails build -platform ${{ matrix.platform }} \
+            -ldflags "-X github.com/sheep-ah/inspiration/internal/version.Version=dev-${GITHUB_SHA::7}"
+
+      - name: 冒烟测试（真实运行二进制，捕获"能编译但起不来"）
+        shell: bash
+        run: |
+          set -e
+          "./build/bin/灵感.app/Contents/MacOS/灵感" --selfcheck --data-dir "$RUNNER_TEMP/insp-smoke"
+          echo "✔ 二进制可正常启动（自检通过）"
+        if: runner.os == 'macOS'
+
+      - name: 冒烟测试（Windows：GUI 子系统无 stdout，校验退出码与版本资源）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "./build/bin/灵感.exe" --selfcheck --data-dir "$env:RUNNER_TEMP\insp-smoke"
+          if ($LASTEXITCODE -ne 0) { throw "自检失败（退出码 $LASTEXITCODE）" }
+          $v = (Get-Item "./build/bin/灵感.exe").VersionInfo.ProductVersion
+          Write-Host "产物版本资源：$v"
+          if (-not $v) { throw "产物缺少版本资源" }
+          Write-Host "✔ 二进制可正常启动（自检通过）"
+
+      - name: 打包（macOS：zip 与 dmg）
+        if: runner.os == 'macOS'
+        run: |
+          set -e
+          arch="${{ matrix.name }}"
+          mkdir -p dist
+          ditto -c -k --keepParent "build/bin/灵感.app" "dist/inspiration_ci_${arch}.zip"
+          hdiutil create -volname "灵感" -srcfolder "build/bin/灵感.app" -ov -format UDZO \
+            "dist/inspiration_ci_${arch}.dmg"
+          ls -la dist
+
+      - name: 整理产物（Windows）
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "build/bin/灵感.exe" "dist/inspiration_ci_windows_amd64_portable.exe"
+          $installer = Get-ChildItem "build/bin/*installer.exe" | Select-Object -First 1
+          if (-not $installer) { throw "未找到 NSIS 安装包" }
+          Copy-Item $installer.FullName "dist/inspiration_ci_windows_amd64_setup.exe"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: 产物校验（大小与数量）
+        shell: bash
+        run: |
+          set -e
+          count=$(find dist -maxdepth 1 -type f | wc -l | tr -d ' ')
+          echo "产物数量：$count"
+          ls -la dist
+          for f in dist/*; do
+            size=$(wc -c <"$f" | tr -d ' ')
+            if [ "$size" -lt 100000 ]; then echo "::error::$f 体积异常（$size 字节）"; exit 1; fi
+          done
+          echo "✔ 产物校验通过"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------- 汇总
+  verify:
+    name: 汇总构建与测试结果
+    needs: [lint, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 校验三个平台产物齐全
+        run: |
+          set -e
+          echo "== 下载到的产物 =="
+          find artifacts -type f | sort
+          fail=0
+          for expect in \
+            "inspiration_ci_windows_amd64_setup.exe" \
+            "inspiration_ci_windows_amd64_portable.exe" \
+            "inspiration_ci_darwin_arm64.zip" \
+            "inspiration_ci_darwin_arm64.dmg" \
+            "inspiration_ci_darwin_amd64.zip" \
+            "inspiration_ci_darwin_amd64.dmg"; do
+            if ! find artifacts -name "$expect" | grep -q .; then
+              echo "::error::缺少产物 $expect"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+          echo "✔ 三平台产物齐全"
+
+      - name: 校验和
+        run: |
+          find artifacts -type f -print0 | sort -z | xargs -0 shasum -a 256 > artifacts/SHA256SUMS.txt
+          cat artifacts/SHA256SUMS.txt
+
+      - name: 汇总
+        run: |
+          {
+            echo "## 构建与测试结果"
+            echo ""
+            echo "- 代码质量（gofmt / go vet / staticcheck / 前端类型检查）：通过"
+            echo "- 单元测试与端到端测试：通过"
+            echo "- 三平台构建：windows-amd64、darwin-arm64、darwin-amd64 全部成功并已上传 Artifact"
+            echo "- 说明：普通提交只产出 CI 产物；正式发布请打标签（见 release.yml）"
+          } >> "$GITHUB_STEP_SUMMARY"

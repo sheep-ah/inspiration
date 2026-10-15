@@ -14,7 +14,7 @@
 | 阶段 2 最小可行版本（模板管理 + 合同生成 + 本地存储） | ✅ 已实现并通过自动化验收，见 [`docs/phase2/`](docs/phase2/README.md)；真机点击验收待用户确认 |
 | 需求扩展：`.doc` 模板与 `.doc` 输出 | ✅ 评估 + 导出侧实现完成，见 [`docs/doc-support-evaluation.md`](docs/doc-support-evaluation.md)（用户侧 Word/WPS 核对待确认） |
 | 阶段 3 完善与稳定性测试（异常路径、性能、图标、静态检查） | ✅ 已完成，见 [`docs/phase3/`](docs/phase3/README.md)；中文输入法实操与真机项待人工确认 |
-| 阶段 4 跨平台 CI/CD | 未开始 |
+| 阶段 4 跨平台 CI/CD（main 自动测试+三平台构建、标签发布） | ✅ 已完成，见 [`docs/phase4/`](docs/phase4/README.md)；工作流首次真实运行待 CI 验证 |
 | 阶段 5 应用内更新 | 未开始 |
 | 阶段 6 最终验收与交付 | 未开始 |
 
@@ -39,6 +39,13 @@
 ## 独立需求评估
 
 - [`docs/doc-support-evaluation.md`](docs/doc-support-evaluation.md) — **.doc（Word 97-2003）模板与输出支持评估**：技术事实、三条路线对比（含实测数据）、推荐方案与实施计划。工具：`scripts/convert-doc-templates.sh`（批量 .doc → .docx + 模板体检）、`灵感 --inspect <file.docx>`（模板体检，不需要数据目录）
+
+## 自动构建与发布
+
+- 推送 `main` / PR → `.github/workflows/ci.yml`：格式检查、静态分析、单元与端到端测试、**三平台原生构建**（Windows 便携版 + NSIS 安装包、macOS arm64/amd64 的 zip 与 dmg），产物作为 CI Artifact（不发布正式版本）
+- 推送 `v1.2.3` 形式的标签 → `.github/workflows/release.yml`：校验标签与分支 → 测试门禁 → 三平台构建 → 生成 `checksums.txt` 与 `latest.json` → **先建 draft、校验 8 个资产齐全后再转为正式发布**
+
+发布操作见 [`docs/phase4/README.md`](docs/phase4/README.md) §4。
 
 ## 转换通道自检（生成 .doc 前建议先跑一次）
 

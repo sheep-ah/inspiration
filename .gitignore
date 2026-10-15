@@ -5,10 +5,13 @@
 
 # Wails
 frontend/node_modules/
-# 前端构建产物：保留 dist/.gitkeep，保证未构建前端时 go:embed 仍能编译
-frontend/dist/*
-!frontend/dist/.gitkeep
+# 注意：frontend/dist 是提交进仓库的（稳定文件名，约 28KB）。
+# 原因：//go:embed all:frontend/dist 要求目录非空；提交产物后新克隆无需 Node 即可 go build，
+# 并且 CI 会校验"产物是否与源码一致"（改了 TS 但忘记重建会被拦下）。
 build/bin/
+# Wails 打包时下载的 WebView2 引导包与打包中间产物
+build/windows/installer/tmp/
+dist/
 
 # POC 运行产物（证据副本已放在 docs/phase1/evidence/）
 poc/docx-eval/out/

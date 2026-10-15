@@ -64,15 +64,39 @@ validate → test → build(3 平台) → publish
 | `scripts/set-version.py` | 本地运行 | ✅ 写入 `1.2.3`；非法输入被拒绝；支持 `python3`/`python` 两种环境 |
 | 三平台构建命令 | 阶段 1/2 本机实测 | ✅ `wails build` 的 darwin/arm64、darwin/amd64、windows/amd64 + NSIS 均已跑通 |
 
-### 2.2 未验证（需要真实 CI 运行）
+### 2.2 CI 已跑通（2026-10-16，run #38790796775 全绿）
+
+六个 job 全部通过：`lint`、`test`、`build windows-amd64`、`build darwin-arm64`、`build darwin-amd64`、`verify`。
+其中三个平台 job 都**真实运行了构建产物**（`--selfcheck` + `--version`），Windows 上还确认了中文输出与退出码正常。
+
+**CI 迭代过程中发现并修复的 9 个真实问题**（全部是本地开发环境掩盖不了的跨平台缺陷）：
+
+| # | 现象 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | Ubuntu `go test` 失败 | 文件名清洗按"120 个字符"截断，中文 3 字节/字 → 360 字节，超出 Linux 单文件名 255 字节上限（macOS/APFS 宽松，本地复现不出来） | 改为按字节截断（160 字节，保留 UTF-8 边界）+ 回归用例 |
+| 2 | lint 失败 | 新增代码有 staticcheck S1002；本地推送前漏跑 staticcheck | 修告警 + `make ci` 一条命令复现 CI 全部检查 |
+| 3 | `-race` 步骤失败 | 性能用例的 5 秒绝对阈值在竞态插桩 + 共享 runner 下被击穿（本地 189ms → runner 5.36s） | `//go:build race` 区分：race 模式只记录不判定；普通模式阈值 15 秒 |
+| 4 | Linux 上测试二进制 build failed | 测试用了只在 macOS 编译的 `validateAppBundle` | 把与平台无关的 .app 处理拆到 `appbundle.go` + 4 个跨平台用例；`make ci` 增加"跨平台测试编译"检查 |
+| 5 | Linux 视角 staticcheck 报未使用 | `ensureWritable` 只在 macOS 分支被调用 | 移到 `install_darwin.go`；`make ci` 增加 `GOOS=linux staticcheck` |
+| 6 | Windows "安装 NSIS" 步骤被判失败 | `choco` 装完不刷新 PATH，脚本最后一条 `where.exe makensis` 返回 1，GitHub Actions 用最后一条命令的退出码作为步骤结果 | 步骤以 `exit 0` 结束 + 构建步骤显式把 NSIS 目录加入 `$env:PATH` |
+| 7 | Windows "写入版本号" 1 秒失败 | Python 往 cp1252 控制台打印中文 → `UnicodeEncodeError` | 脚本输出改 ASCII + 强制 UTF-8；`make ci` 增加 `PYTHONIOENCODING=cp1252` 模拟检查 |
+| 8 | Windows 冒烟测试误判失败 | GUI 子系统 exe 用 `&` 调用时 PowerShell 不等待，`$LASTEXITCODE` 为空 | 改用 `Start-Process -Wait -PassThru` 取真实退出码 |
+| 9 | 汇总步骤"缺少产物" | 打包用连字符（`darwin-arm64`），汇总/发布按下划线（`darwin_arm64`）查找 | 矩阵新增 `asset` 字段，打包/校验/发布三处统一 |
+
+**本地防线（`make ci` 现在会做 6 件事）**：gofmt、go vet、staticcheck、前端类型检查与构建、
+前端产物与源码一致性、`PYTHONIOENCODING=cp1252` 跑版本脚本、`GOOS=linux staticcheck`、
+linux/windows/darwin 三平台的**测试二进制编译**。
+
+**结论**：任务书"不能只用 GOOS/GOARCH 交叉编译就认定跨平台构建成功"这条要求，在实践中确实抓到了 9 个真实缺陷——
+其中 4 个（#1/#4/#5/#7）是只在目标平台上才会暴露的代码级问题。
+
+### 2.3 仍未验证
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | **GitHub Actions 真实执行** | 需要推送后由 CI 实跑；本地无法模拟 runner 环境（尤其 Windows/macOS 的 runner 差异） |
-| 2 | Windows 首次构建 | NSIS 安装、`-webview2 embed` 下载引导包、PowerShell 打包与版本资源校验，均需在 runner 上首次验证 |
-| 3 | macOS 上 `hdiutil`/`ditto` 打包 | 命令本机可用，但 CI 上未跑过 |
-| 4 | 正式发布流程（draft → 校验 → 转正） | 需要一次真实标签发布验证 |
-| 5 | 产物在真机安装与运行 | 需要用户验收（阶段 6） |
+| 1 | 正式发布流程（`release.yml`：draft → 校验 8 个资产 → 转正） | 尚未跑过，需要一次真实标签发布验证 |
+| 2 | 产物在真机安装与运行（Windows / Intel Mac） | 需要用户验收（阶段 6）；arm64 本机可自测 |
+| 3 | `-webview2 embed` 安装包在干净 Windows 上的实际安装行为 | CI 只验证了构建与运行，未做安装测试 |
 
 ## 3. 关于 Actions 计费（仓库已设为 public）
 

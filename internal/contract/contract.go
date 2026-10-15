@@ -214,6 +214,9 @@ func (s *Service) Generate(ctx context.Context, req GenerateRequest) (*GenerateR
 		baseName = DefaultFileName(req.Values)
 	}
 	baseName = strings.TrimSuffix(strings.TrimSuffix(store.SanitizeFileName(baseName), ".docx"), ".doc")
+	if baseName == "" {
+		baseName = "合同"
+	}
 
 	res := &GenerateResult{
 		Dir:          outDir,

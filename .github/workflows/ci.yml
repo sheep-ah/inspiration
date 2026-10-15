@@ -147,14 +147,24 @@ jobs:
 
       - name: 安装 NSIS（Windows 打包）
         if: runner.os == 'Windows'
-        run: choco install nsis -y --no-progress
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed" }
+          # chocolatey does not refresh the runner PATH; add it explicitly for later steps
+          $nsisDirs = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS") | Where-Object { Test-Path $_ }
+          foreach ($d in $nsisDirs) { $d | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+          where.exe makensis 2>$null
+          Get-Command makensis -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
 
       - name: 构建（Windows：NSIS 安装包）
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          python scripts/set-version.py 0.0.0
-          if ($LASTEXITCODE -ne 0) { throw "写入版本号失败" }
+          $py = if (Get-Command python -ErrorAction SilentlyContinue) { "python" } else { "py" }
+          & $py scripts/set-version.py 0.0.0
+          if ($LASTEXITCODE -ne 0) { throw "failed to write version" }
+          Write-Host "makensis: $((Get-Command makensis -ErrorAction SilentlyContinue).Source)"
           wails build -platform ${{ matrix.platform }} -nsis -installscope user -webview2 embed `
             -ldflags "-X github.com/sheep-ah/inspiration/internal/version.Version=dev-${{ github.sha }}"
 
@@ -177,12 +187,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & "./build/bin/灵感.exe" --selfcheck --data-dir "$env:RUNNER_TEMP\insp-smoke"
-          if ($LASTEXITCODE -ne 0) { throw "自检失败（退出码 $LASTEXITCODE）" }
-          $v = (Get-Item "./build/bin/灵感.exe").VersionInfo.ProductVersion
-          Write-Host "产物版本资源：$v"
-          if (-not $v) { throw "产物缺少版本资源" }
-          Write-Host "✔ 二进制可正常启动（自检通过）"
+          # NOTE: never write non-ASCII paths in PowerShell scripts here: PS 5.1 decodes
+          # BOM-less scripts as ANSI, which corrupts CJK. Resolve the exe dynamically.
+          $exe = Get-ChildItem "build/bin/*.exe" |
+            Where-Object { $_.Name -notlike "*installer*" } |
+            Select-Object -First 1
+          if (-not $exe) { throw "executable not found" }
+          Write-Host "smoke test target: $($exe.FullName)"
+          & $exe.FullName --selfcheck --data-dir "$env:RUNNER_TEMP\insp-smoke"
+          if ($LASTEXITCODE -ne 0) { throw "selfcheck failed (exit code $LASTEXITCODE)" }
+          $v = $exe.VersionInfo.ProductVersion
+          Write-Host "artifact product version: $v"
+          if (-not $v) { throw "artifact has no version resource" }
+          Write-Host "binary starts successfully (selfcheck passed)"
 
       - name: 打包（macOS：zip 与 dmg）
         if: runner.os == 'macOS'
@@ -200,9 +217,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "build/bin/灵感.exe" "dist/inspiration_ci_windows_amd64_portable.exe"
+          $portable = Get-ChildItem "build/bin/*.exe" |
+            Where-Object { $_.Name -notlike "*installer*" } |
+            Select-Object -First 1
+          if (-not $portable) { throw "executable not found" }
+          Copy-Item $portable.FullName "dist/inspiration_ci_windows_amd64_portable.exe"
           $installer = Get-ChildItem "build/bin/*installer.exe" | Select-Object -First 1
-          if (-not $installer) { throw "未找到 NSIS 安装包" }
+          if (-not $installer) { throw "NSIS installer not found" }
           Copy-Item $installer.FullName "dist/inspiration_ci_windows_amd64_setup.exe"
           Get-ChildItem dist | Format-Table Name, Length
 

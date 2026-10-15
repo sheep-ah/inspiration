@@ -11,10 +11,38 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // MaxTemplateBytes 单个模板文件大小上限（50 MB）。
 const MaxTemplateBytes = 50 << 20
+
+// MaxNameBytes 是单个文件名（不含扩展名）的字节上限。
+// 为什么按字节而不是字符：Linux 文件系统（ext4 等）限制单个文件名 255 字节，
+// 中文按 UTF-8 占 3 字节、emoji 占 4 字节，按"120 个字符"截断仍可能超出上限，
+// 在 Linux 上会直接报 "file name too long"（macOS/APFS 相对宽松，所以本地测不出来）。
+// 这里留出余量给扩展名与重名后缀（如 " (2).docx"）。
+const MaxNameBytes = 160
+
+// truncateBytes 按 UTF-8 边界把字符串截到不超过 limit 字节。
+func truncateBytes(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	var b strings.Builder
+	for _, r := range s {
+		n := utf8.RuneLen(r)
+		if b.Len()+n > limit {
+			break
+		}
+		b.WriteRune(r)
+	}
+	out := b.String()
+	if out == "" {
+		return s[:limit]
+	}
+	return out
+}
 
 // copyFileAtomic 把 srcPath 复制到 dir/name（先写临时文件再 rename），返回实际路径、大小与 sha256。
 func copyFileAtomic(srcPath, dir, name string, maxBytes int64) (string, int64, string, error) {
@@ -129,9 +157,7 @@ func SanitizeFileName(name string) string {
 	if name == "" {
 		return "合同"
 	}
-	if len([]rune(name)) > 120 {
-		name = string([]rune(name)[:120])
-	}
+	name = truncateBytes(name, MaxNameBytes)
 	base := strings.ToUpper(strings.TrimSuffix(name, filepath.Ext(name)))
 	switch base {
 	case "CON", "PRN", "AUX", "NUL",

@@ -92,6 +92,17 @@ validate → test → build(3 平台) → publish
 - 已实测验证版本管道：`scripts/set-version.py 9.9.9` → `wails build -platform windows/amd64 -nsis` → **exe 与 NSIS 安装包内均为 UTF-16 的 "9.9.9"**，说明版本号确实一路传到产物；
 - `.gitignore` 已忽略 `build/windows/installer/tmp/`（`-webview2 embed` 会下载约 1.7MB 的 WebView2 引导包）与 `dist/`。
 
+## 3.2 第一次 CI 运行的结果与修复（2026-10-16）
+
+第一次运行（`c85fb74`）结果：**macOS arm64/amd64 两个构建 job 全绿**（Wails 安装、构建、冒烟自检、zip/dmg 打包、产物上传均通过），
+但 Ubuntu 测试与 Windows 构建失败。逐项定位与修复：
+
+| 失败 | 根因 | 修复 |
+|---|---|---|
+| Ubuntu `go test` 失败 | **跨平台真实 bug**：文件名清洗按"120 个字符"截断，中文 3 字节/字 → 360 字节，超出 Linux 单文件名 255 字节上限（macOS/APFS 宽松，所以本地测不出来）→ 生成时报 `file name too long` | 改为按**字节**截断（上限 160 字节，保留 UTF-8 边界），并新增两个回归用例（含 emoji/全角字符与"重名后缀后仍可创建"） |
+| Windows 构建失败 | chocolatey 安装 NSIS 后**不会刷新当前 runner 进程的 PATH**，后续步骤里的 Wails 找不到 `makensis` | 安装步骤显式把 NSIS 目录写入 `$GITHUB_PATH`，并在构建前打印 `makensis` 路径便于下一次诊断 |
+| （预防）Windows 打包脚本 | PowerShell 5.1 会把**无 BOM 的脚本按 ANSI 解码**，脚本里的中文路径会变乱码 | Windows 的 `run` 块改为**全部 ASCII**：动态查找 `build/bin/*.exe` 而不是写死中文文件名；已用脚本校验两个工作流的 pwsh 块不含任何非 ASCII 字符 |
+
 ## 4. 发布操作手册（给使用者）
 
 ```bash

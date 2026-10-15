@@ -130,7 +130,15 @@ jobs:
 
       - name: 安装 NSIS（Windows 打包）
         if: runner.os == 'Windows'
-        run: choco install nsis -y --no-progress
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed" }
+          # chocolatey does not refresh the runner PATH; add it explicitly for later steps
+          $nsisDirs = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS") | Where-Object { Test-Path $_ }
+          foreach ($d in $nsisDirs) { $d | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
+          where.exe makensis 2>$null
+          Get-Command makensis -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
 
       - name: 写入版本号（与应用内版本、Release 标签保持一致）
         shell: bash
@@ -143,6 +151,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          Write-Host "makensis: $((Get-Command makensis -ErrorAction SilentlyContinue).Source)"
           wails build -platform ${{ matrix.platform }} -nsis -installscope user -webview2 embed `
             -ldflags "-X github.com/sheep-ah/inspiration/internal/version.Version=${{ github.ref_name }}"
 
@@ -169,14 +178,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & "./build/bin/灵感.exe" --selfcheck --data-dir "$env:RUNNER_TEMP\insp-rel-smoke"
-          if ($LASTEXITCODE -ne 0) { throw "自检失败（退出码 $LASTEXITCODE）" }
-          $v = (Get-Item "./build/bin/灵感.exe").VersionInfo.ProductVersion
-          Write-Host "产物版本资源：$v"
+          # Avoid non-ASCII paths in PowerShell: PS 5.1 decodes BOM-less scripts as ANSI.
+          $exe = Get-ChildItem "build/bin/*.exe" |
+            Where-Object { $_.Name -notlike "*installer*" } |
+            Select-Object -First 1
+          if (-not $exe) { throw "executable not found" }
+          & $exe.FullName --selfcheck --data-dir "$env:RUNNER_TEMP\insp-rel-smoke"
+          if ($LASTEXITCODE -ne 0) { throw "selfcheck failed (exit code $LASTEXITCODE)" }
+          $v = $exe.VersionInfo.ProductVersion
+          Write-Host "artifact product version: $v"
           if ($v -ne "${{ needs.validate.outputs.version }}") {
-            throw "产物版本资源（$v）与标签（${{ needs.validate.outputs.version }}）不一致"
+            throw "artifact version ($v) does not match tag (${{ needs.validate.outputs.version }})"
           }
-          Write-Host "✔ 版本号与标签一致，且可正常启动"
+          Write-Host "version matches tag and binary starts successfully"
 
       - name: 打包正式产物（macOS）
         if: runner.os == 'macOS'
@@ -196,9 +210,13 @@ jobs:
         run: |
           $version = "${{ needs.validate.outputs.version }}"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "build/bin/灵感.exe" "dist/inspiration_${version}_windows_amd64_portable.exe"
+          $portable = Get-ChildItem "build/bin/*.exe" |
+            Where-Object { $_.Name -notlike "*installer*" } |
+            Select-Object -First 1
+          if (-not $portable) { throw "executable not found" }
+          Copy-Item $portable.FullName "dist/inspiration_${version}_windows_amd64_portable.exe"
           $installer = Get-ChildItem "build/bin/*installer.exe" | Select-Object -First 1
-          if (-not $installer) { throw "未找到 NSIS 安装包，禁止发布" }
+          if (-not $installer) { throw "NSIS installer not found; refusing to publish" }
           Copy-Item $installer.FullName "dist/inspiration_${version}_windows_amd64_setup.exe"
           Get-ChildItem dist | Format-Table Name, Length
 

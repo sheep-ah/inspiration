@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/sheep-ah/inspiration/internal/config"
 )
@@ -209,5 +210,45 @@ func TestMigrateRejectsNewerSchema(t *testing.T) {
 	}
 	if err := st.migrate(); err == nil {
 		t.Fatal("数据库版本高于应用时应报错，避免误操作新数据")
+	}
+}
+
+func TestSanitizeFileNameRespectsByteLimit(t *testing.T) {
+	// Linux 文件系统限制单个文件名 255 字节；中文 3 字节/字、emoji 4 字节/字。
+	// 这里保证产物名（含扩展名与重名后缀）有充足余量。
+	cases := []string{
+		strings.Repeat("很长的合同名称", 50),
+		strings.Repeat("📄", 100),
+		strings.Repeat("ＡＢＣ", 60),
+	}
+	for _, in := range cases {
+		got := SanitizeFileName(in)
+		if len(got) > MaxNameBytes {
+			t.Errorf("文件名未被限制到 %d 字节：实际 %d 字节", MaxNameBytes, len(got))
+		}
+		if !utf8.ValidString(got) {
+			t.Errorf("截断破坏了 UTF-8 编码：%q", got)
+		}
+		if got == "" {
+			t.Errorf("截断后不应为空")
+		}
+	}
+	// 常见长度的中文名不受影响
+	short := "合同-示例科技（北京）有限公司-20261016"
+	if got := SanitizeFileName(short); got != short {
+		t.Errorf("正常长度文件名不应被改动：%q → %q", short, got)
+	}
+}
+
+func TestUniquePathWithLongChineseNameIsCreatable(t *testing.T) {
+	dir := t.TempDir()
+	base := SanitizeFileName(strings.Repeat("很长的合同名称", 50))
+	path := UniquePath(dir, base, ".docx")
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatalf("按清洗后的文件名创建文件失败（文件名 %d 字节）：%v", len(filepath.Base(path)), err)
+	}
+	second := UniquePath(dir, base, ".docx")
+	if err := os.WriteFile(second, []byte("x"), 0o644); err != nil {
+		t.Fatalf("重名后缀后仍应可创建：%v", err)
 	}
 }

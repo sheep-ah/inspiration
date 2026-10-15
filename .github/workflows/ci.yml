@@ -118,14 +118,17 @@ jobs:
           - name: windows-amd64
             os: windows-latest
             platform: windows/amd64
+            asset: windows_amd64
             artifact: inspiration_ci_windows_amd64
           - name: darwin-arm64
             os: macos-14          # Apple Silicon runner
             platform: darwin/arm64
+            asset: darwin_arm64
             artifact: inspiration_ci_darwin_arm64
           - name: darwin-amd64
             os: macos-14          # 在 arm64 上交叉编译 Intel 版本
             platform: darwin/amd64
+            asset: darwin_amd64
             artifact: inspiration_ci_darwin_amd64
     runs-on: ${{ matrix.os }}
     steps:
@@ -224,7 +227,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           set -e
-          arch="${{ matrix.name }}"
+          arch="${{ matrix.asset }}"
           mkdir -p dist
           ditto -c -k --keepParent "build/bin/灵感.app" "dist/inspiration_ci_${arch}.zip"
           hdiutil create -volname "灵感" -srcfolder "build/bin/灵感.app" -ov -format UDZO \

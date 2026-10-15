@@ -14,8 +14,8 @@
 | 阶段 2 最小可行版本（模板管理 + 合同生成 + 本地存储） | ✅ 已实现并通过自动化验收，见 [`docs/phase2/`](docs/phase2/README.md)；真机点击验收待用户确认 |
 | 需求扩展：`.doc` 模板与 `.doc` 输出 | ✅ 评估 + 导出侧实现完成，见 [`docs/doc-support-evaluation.md`](docs/doc-support-evaluation.md)（用户侧 Word/WPS 核对待确认） |
 | 阶段 3 完善与稳定性测试（异常路径、性能、图标、静态检查） | ✅ 已完成，见 [`docs/phase3/`](docs/phase3/README.md)；中文输入法实操与真机项待人工确认 |
-| 阶段 4 跨平台 CI/CD（main 自动测试+三平台构建、标签发布） | ✅ 已完成，见 [`docs/phase4/`](docs/phase4/README.md)；工作流首次真实运行待 CI 验证 |
-| 阶段 5 应用内更新 | 未开始 |
+| 阶段 4 跨平台 CI/CD（main 自动测试+三平台构建、标签发布） | ✅ 已完成并**在真实 CI 上跑通**（六 job 全绿，三平台产物均真实运行验证），见 [`docs/phase4/`](docs/phase4/README.md) |
+| 阶段 5 应用内更新 | 🔄 首个版本已完成（检查/下载/校验/按平台安装 + 界面 + 20 个用例），见 [`docs/phase5/`](docs/phase5/README.md)；正式发布与端到端更新待验证 |
 | 阶段 6 最终验收与交付 | 未开始 |
 
 ## 阶段 1 选型结论（已冻结）

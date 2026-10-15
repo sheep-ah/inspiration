@@ -350,6 +350,65 @@ export namespace template {
 
 }
 
+export namespace updater {
+	
+	export class ApplyResult {
+	    method: string;
+	    message: string;
+	    needsRestart: boolean;
+	    requiresManual: boolean;
+	    manualPath: string;
+	    backupPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApplyResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.method = source["method"];
+	        this.message = source["message"];
+	        this.needsRestart = source["needsRestart"];
+	        this.requiresManual = source["requiresManual"];
+	        this.manualPath = source["manualPath"];
+	        this.backupPath = source["backupPath"];
+	    }
+	}
+	export class Info {
+	    currentVersion: string;
+	    latestVersion: string;
+	    upToDate: boolean;
+	    notes: string;
+	    publishedAt: string;
+	    releaseUrl: string;
+	    assetName: string;
+	    assetSize: number;
+	    assetUrl: string;
+	    sha256: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.upToDate = source["upToDate"];
+	        this.notes = source["notes"];
+	        this.publishedAt = source["publishedAt"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.assetName = source["assetName"];
+	        this.assetSize = source["assetSize"];
+	        this.assetUrl = source["assetUrl"];
+	        this.sha256 = source["sha256"];
+	        this.message = source["message"];
+	    }
+	}
+
+}
+
 export namespace version {
 	
 	export class Info {

@@ -110,6 +110,37 @@ export interface ContractRecord {
   createdAt: string;
 }
 
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  upToDate: boolean;
+  notes: string;
+  publishedAt: string;
+  releaseUrl: string;
+  assetName: string;
+  assetSize: number;
+  assetUrl: string;
+  sha256: string;
+  message: string;
+}
+
+export interface UpdateApplyResult {
+  method: string;
+  message: string;
+  needsRestart: boolean;
+  requiresManual: boolean;
+  manualPath: string;
+  backupPath: string;
+}
+
+export interface UpdateProgress {
+  phase: "download" | "verified" | "install";
+  downloaded?: number;
+  total?: number;
+  percent?: number;
+  message?: string;
+}
+
 export interface VersionInfo {
   version: string;
   commit: string;
@@ -134,6 +165,12 @@ interface AppBridge {
   OpenFile(path: string): Promise<void>;
   RevealInFolder(path: string): Promise<void>;
   SupportedFields(): Promise<string[]>;
+  CheckUpdate(): Promise<UpdateInfo | null>;
+  DownloadUpdate(assetURL: string, assetName: string, assetSize: number, sha256: string): Promise<string>;
+  ApplyUpdate(downloadedPath: string): Promise<UpdateApplyResult>;
+  OpenReleasePage(url: string): Promise<void>;
+  AutoCheckUpdate(): Promise<boolean>;
+  SetAutoCheckUpdate(enabled: boolean): Promise<void>;
 }
 
 interface RuntimeBridge {
@@ -175,6 +212,13 @@ export const api = {
   defaultOutputDir: () => bridge().DefaultOutputDir(),
   converterStatus: () => bridge().ConverterStatus(),
   supportedFields: () => bridge().SupportedFields(),
+  checkUpdate: () => bridge().CheckUpdate(),
+  downloadUpdate: (assetURL: string, assetName: string, assetSize: number, sha256: string) =>
+    bridge().DownloadUpdate(assetURL, assetName, assetSize, sha256),
+  applyUpdate: (downloadedPath: string) => bridge().ApplyUpdate(downloadedPath),
+  openReleasePage: (url: string) => bridge().OpenReleasePage(url),
+  autoCheckUpdate: () => bridge().AutoCheckUpdate(),
+  setAutoCheckUpdate: (enabled: boolean) => bridge().SetAutoCheckUpdate(enabled),
   pickOutputDir: (current: string) => bridge().PickOutputDir(current),
   generateContract: (req: GenerateRequest) => bridge().GenerateContract(req),
   listContracts: (limit: number) => bridge().ListContracts(limit),

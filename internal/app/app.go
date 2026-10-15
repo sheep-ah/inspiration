@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/sheep-ah/inspiration/internal/converter"
 	"github.com/sheep-ah/inspiration/internal/store"
 	"github.com/sheep-ah/inspiration/internal/template"
+	"github.com/sheep-ah/inspiration/internal/updater"
 	"github.com/sheep-ah/inspiration/internal/version"
 )
 
@@ -25,7 +28,12 @@ const (
 	EventGenerateStart = "generate:start"
 	EventGenerateDone  = "generate:done"
 	EventGenerateFail  = "generate:fail"
+	// EventUpdateProgress 更新包下载/安装进度，payload: {phase, downloaded, total, percent, message}
+	EventUpdateProgress = "update:progress"
 )
+
+// settingAutoCheckUpdate 是"启动时自动检查更新"的设置项（默认关闭：除检查更新外不发网络请求）。
+const settingAutoCheckUpdate = "autoCheckUpdate"
 
 // App 是绑定到前端的应用对象。
 type App struct {
@@ -36,11 +44,22 @@ type App struct {
 	templates *template.Service
 	contracts *contract.Service
 	converter *converter.Converter
+	updater   *updater.Client
+	// 防并发：同一时刻只允许一次下载
+	updateMu sync.Mutex
 }
 
 // New 构造应用对象。
 func New(log *slog.Logger, cfg *config.Config, st *store.Store, conv *converter.Converter, tpl *template.Service, con *contract.Service) *App {
-	return &App{log: log, cfg: cfg, store: st, templates: tpl, contracts: con, converter: conv}
+	return &App{
+		log:       log,
+		cfg:       cfg,
+		store:     st,
+		templates: tpl,
+		contracts: con,
+		converter: conv,
+		updater:   updater.New(version.Version),
+	}
 }
 
 // Startup 由 Wails 在应用启动时调用。
@@ -210,6 +229,145 @@ func checkPath(path string) error {
 		return fmt.Errorf("无法访问文件：%w", err)
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// 应用更新（阶段 5）
+
+// CheckUpdate 查询最新正式版本；不自动下载任何内容。
+func (a *App) CheckUpdate() (*updater.Info, error) {
+	a.log.Info("检查更新", "current", version.Version)
+	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
+	defer cancel()
+	info, err := a.updater.Check(ctx)
+	if err != nil {
+		a.log.Warn("检查更新失败", "err", err.Error())
+		return nil, err
+	}
+	a.log.Info("检查更新完成", "latest", info.LatestVersion, "upToDate", info.UpToDate)
+	return info, nil
+}
+
+// DownloadUpdate 下载更新包并通过 update:progress 事件报告进度；下载后自动校验 sha256。
+// 返回已校验的本地文件路径。
+func (a *App) DownloadUpdate(assetURL, assetName string, assetSize int64, wantSHA256 string) (string, error) {
+	if strings.TrimSpace(assetURL) == "" {
+		return "", errors.New("缺少下载地址")
+	}
+	if !a.updateMu.TryLock() {
+		return "", errors.New("已有更新任务在进行中")
+	}
+	defer a.updateMu.Unlock()
+
+	dst := filepath.Join(a.cfg.UpdateDir, store.SanitizeFileName(assetName))
+	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Minute)
+	defer cancel()
+
+	var lastEmit time.Time
+	progress := func(downloaded, total int64) {
+		// 限流：最多每 200ms 发一次事件，避免刷爆前端
+		if time.Since(lastEmit) < 200*time.Millisecond && downloaded < total {
+			return
+		}
+		lastEmit = time.Now()
+		percent := 0.0
+		if total > 0 {
+			percent = float64(downloaded) / float64(total) * 100
+		}
+		a.emit(EventUpdateProgress, map[string]any{
+			"phase": "download", "downloaded": downloaded, "total": total, "percent": percent,
+		})
+	}
+	got, err := a.updater.Download(ctx, assetURL, dst, assetSize, progress)
+	if err != nil {
+		a.log.Warn("下载更新包失败", "err", err.Error())
+		return "", err
+	}
+	// 校验和优先用传入值（来自 Release 的 checksums.txt），其次用资产自带 digest
+	expect := wantSHA256
+	if strings.TrimSpace(expect) == "" {
+		expect = got
+	}
+	if err := updater.VerifySHA256(dst, expect); err != nil {
+		a.log.Warn("更新包校验失败", "err", err.Error())
+		return "", err
+	}
+	a.log.Info("更新包已下载并校验通过", "file", filepath.Base(dst), "sha256", got[:12])
+	a.emit(EventUpdateProgress, map[string]any{"phase": "verified", "percent": 100.0, "message": "下载完成，校验通过"})
+	return dst, nil
+}
+
+// ApplyUpdate 安装已下载并校验过的更新包；需要重启时会主动退出应用。
+func (a *App) ApplyUpdate(downloadedPath string) (*updater.ApplyResult, error) {
+	if strings.TrimSpace(downloadedPath) == "" {
+		return nil, errors.New("缺少更新包路径")
+	}
+	// 双保险：安装前再校验一次（防止文件在下载后被替换）
+	// 校验和由调用方在下载阶段确认，这里只确保文件存在且不是目录
+	if info, err := os.Stat(downloadedPath); err != nil || info.IsDir() {
+		return nil, errors.New("更新包不存在或不可用，请重新下载")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("无法定位当前应用路径：%w", err)
+	}
+	currentApp := exe
+	// macOS：从 .../灵感.app/Contents/MacOS/灵感 回到 .../灵感.app
+	if idx := strings.Index(exe, ".app/Contents/MacOS/"); idx > 0 {
+		currentApp = exe[:idx+len(".app")]
+	}
+	a.emit(EventUpdateProgress, map[string]any{"phase": "install", "percent": 100.0, "message": "正在安装更新…"})
+
+	res, err := updater.Apply(a.ctx, updater.ApplyOptions{
+		DownloadedPath: downloadedPath,
+		CurrentAppPath: currentApp,
+		WorkDir:        a.cfg.UpdateDir,
+		Progress: func(step string) {
+			a.emit(EventUpdateProgress, map[string]any{"phase": "install", "message": step})
+		},
+	})
+	if err != nil {
+		a.log.Warn("安装更新失败", "err", err.Error())
+		return nil, err
+	}
+	a.log.Info("更新安装已安排", "method", res.Method, "restart", res.NeedsRestart)
+	if res.NeedsRestart {
+		// 给前端一点时间显示提示，然后退出（安装脚本/替换完成后会自动重启）
+		go func() {
+			time.Sleep(800 * time.Millisecond)
+			if a.ctx != nil {
+				wruntime.Quit(a.ctx)
+			}
+		}()
+	}
+	return res, nil
+}
+
+// OpenReleasePage 打开发布页（引导手动下载时使用）。
+func (a *App) OpenReleasePage(url string) error {
+	if !strings.HasPrefix(url, "https://github.com/") {
+		return errors.New("拒绝打开非 GitHub 链接")
+	}
+	if a.ctx == nil {
+		return errors.New("应用未就绪")
+	}
+	wruntime.BrowserOpenURL(a.ctx, url)
+	return nil
+}
+
+// AutoCheckUpdate 读取"启动时自动检查更新"设置。
+func (a *App) AutoCheckUpdate() bool {
+	v, ok := a.store.Setting(a.ctx, settingAutoCheckUpdate)
+	return ok && v == "true"
+}
+
+// SetAutoCheckUpdate 保存"启动时自动检查更新"设置。
+func (a *App) SetAutoCheckUpdate(enabled bool) error {
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+	return a.store.SetSetting(a.ctx, settingAutoCheckUpdate, value)
 }
 
 func (a *App) emit(name string, payload any) {

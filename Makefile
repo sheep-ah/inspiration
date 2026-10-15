@@ -47,6 +47,12 @@ test-race: ## 竞态检测
 
 ci: lint ## 本地复现 CI 的全部检查（推送前跑一次）
 	go test ./... -count=1 -timeout 15m
+	@# 跨平台测试编译：防止"只在某个平台能编译"的测试代码（CI 上会直接 build failed）
+	@for t in "linux amd64" "windows amd64" "darwin amd64"; do set -- $$t; \
+		printf "  %s/%s 测试编译: " "$$1" "$$2"; \
+		if out=$$(CGO_ENABLED=0 GOOS=$$1 GOARCH=$$2 go test -c -o /dev/null ./... 2>&1); then echo "✔"; \
+		else echo "✘"; echo "$$out" | head -10; exit 1; fi; \
+	done
 	go test -race ./internal/docx/ ./internal/store/ -count=1
 	go test ./internal/docx/ -bench . -benchtime 3x -run XXX
 	@echo "✔ 本地 CI 检查全部通过"

@@ -10,6 +10,18 @@ import (
 	"time"
 )
 
+// ensureWritable 判断目录是否可写（用创建临时文件的方式探测）。
+func ensureWritable(dir string) error {
+	probe, err := os.CreateTemp(dir, ".inspiration-write-probe-*")
+	if err != nil {
+		return err
+	}
+	name := probe.Name()
+	_ = probe.Close()
+	_ = os.Remove(name)
+	return nil
+}
+
 // applyPlatform（macOS）：把更新包里的 .app 整包替换当前应用。
 //
 // 为什么不改包内文件：macOS 上整个 .app 都被签名，改包内内容会使签名失效

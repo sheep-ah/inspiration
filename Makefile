@@ -47,6 +47,10 @@ test-race: ## 竞态检测
 
 ci: lint ## 本地复现 CI 的全部检查（推送前跑一次）
 	go test ./... -count=1 -timeout 15m
+	@# 以 Linux 视角再跑一次 staticcheck：避免"某个文件只在 macOS 编译，导致 Linux 上判定未使用"
+	@printf "  GOOS=linux staticcheck: "; \
+	if out=$$(GOOS=linux CGO_ENABLED=0 "$$(command -v staticcheck || echo "$$(go env GOPATH)/bin/staticcheck")" ./... 2>&1); then echo "✔"; \
+	else echo "✘"; echo "$$out" | head -10; exit 1; fi
 	@# 跨平台测试编译：防止"只在某个平台能编译"的测试代码（CI 上会直接 build failed）
 	@for t in "linux amd64" "windows amd64" "darwin amd64"; do set -- $$t; \
 		printf "  %s/%s 测试编译: " "$$1" "$$2"; \

@@ -58,18 +58,6 @@ func Apply(ctx context.Context, opts ApplyOptions) (*ApplyResult, error) {
 	return applyPlatform(ctx, opts)
 }
 
-// ensureWritable 判断目录是否可写（用创建临时文件的方式探测）。
-func ensureWritable(dir string) error {
-	probe, err := os.CreateTemp(dir, ".inspiration-write-probe-*")
-	if err != nil {
-		return err
-	}
-	name := probe.Name()
-	_ = probe.Close()
-	_ = os.Remove(name)
-	return nil
-}
-
 // cleanupStaleBackups 清理历史备份（保留 7 天），避免长期占用磁盘。
 func cleanupStaleBackups(dir, pattern string) {
 	matches, err := filepath.Glob(filepath.Join(dir, pattern))

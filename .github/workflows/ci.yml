@@ -157,9 +157,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed" }
           # chocolatey does not refresh the runner PATH; add it explicitly for later steps
           $nsisDirs = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS") | Where-Object { Test-Path $_ }
-          foreach ($d in $nsisDirs) { $d | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append }
-          where.exe makensis 2>$null
-          Get-Command makensis -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+          foreach ($d in $nsisDirs) { Add-Content -Path $env:GITHUB_PATH -Value $d -Encoding utf8 }
+          Write-Host "NSIS dirs: $($nsisDirs -join ', ')"
+          # NOTE: never end a step with a command that can fail (e.g. where.exe returning 1):
+          # GitHub Actions uses the last exit code as the step result.
+          $makensis = "$env:ProgramFiles(x86)\NSIS\makensis.exe"
+          Write-Host "makensis exists: $(Test-Path $makensis) ($makensis)"
+          exit 0
 
       - name: 构建（Windows：NSIS 安装包）
         if: runner.os == 'Windows'

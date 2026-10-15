@@ -77,6 +77,9 @@ type Client struct {
 	GOOS     string
 	GOARCH   string
 	currentV string
+	// allowLocalHTTP 仅供单元测试使用：允许访问本机 http 测试服务器。
+	// 生产代码永远不会设置它，因此对外行为始终是"仅 HTTPS + 仅 GitHub 域名"。
+	allowLocalHTTP bool
 }
 
 // New 创建默认客户端。
@@ -103,7 +106,7 @@ func (c *Client) Check(ctx context.Context) (*Info, error) {
 		Notes:          strings.TrimSpace(rel.Body),
 		ReleaseURL:     rel.HTMLURL,
 	}
-	if rel.PublishedAt.IsZero() == false {
+	if !rel.PublishedAt.IsZero() {
 		info.PublishedAt = rel.PublishedAt.Format(time.RFC3339)
 	}
 	if !IsNewer(c.currentV, rel.TagName) {
@@ -205,15 +208,24 @@ func assetSHA256(a Asset) string {
 }
 
 // checkHost 校验下载地址来源，防止被引导到第三方站点。
-func checkHost(rawURL string) error {
+func (c *Client) checkHost(rawURL string) error {
+	return checkHostWith(rawURL, c.allowLocalHTTP)
+}
+
+func checkHost(rawURL string) error { return checkHostWith(rawURL, false) }
+
+func checkHostWith(rawURL string, allowLocalHTTP bool) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("下载地址无法解析：%w", err)
 	}
+	host := strings.ToLower(u.Hostname())
+	if allowLocalHTTP && u.Scheme == "http" && (host == "127.0.0.1" || host == "localhost" || host == "::1") {
+		return nil // 仅测试用
+	}
 	if u.Scheme != "https" {
 		return fmt.Errorf("下载地址必须是 HTTPS：%s", rawURL)
 	}
-	host := strings.ToLower(u.Hostname())
 	allowed := []string{"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"}
 	for _, a := range allowed {
 		if host == a || strings.HasSuffix(host, "."+a) {
@@ -225,7 +237,7 @@ func checkHost(rawURL string) error {
 
 // Download 下载资产到 dstPath，并通过 progress 回调报告进度；返回实际 sha256。
 func (c *Client) Download(ctx context.Context, assetURL, dstPath string, expectedSize int64, progress func(downloaded, total int64)) (string, error) {
-	if err := checkHost(assetURL); err != nil {
+	if err := c.checkHost(assetURL); err != nil {
 		return "", err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL, nil)
@@ -347,7 +359,7 @@ func (c *Client) FetchChecksums(ctx context.Context, rel *Release) (map[string]s
 	if target == "" {
 		return nil, errors.New("发布中缺少 checksums.txt，无法校验完整性")
 	}
-	if err := checkHost(target); err != nil {
+	if err := c.checkHost(target); err != nil {
 		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)

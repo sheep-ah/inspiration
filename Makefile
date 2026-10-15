@@ -19,7 +19,7 @@ LDFLAGS := -X $(PKG)/internal/version.Version=$(VERSION) \
            -X $(PKG)/internal/version.Commit=$(COMMIT) \
            -X $(PKG)/internal/version.BuildTime=$(BUILT_AT)
 
-.PHONY: help dev build build-all test test-race lint fmt vet frontend clean package-windows package-macos-amd64 package-macos-arm64 package-macos-universal selfcheck
+.PHONY: help dev build build-all test test-race ci lint fmt vet frontend clean package-windows package-macos-amd64 package-macos-arm64 package-macos-universal selfcheck
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -44,6 +44,12 @@ test: ## 单元测试 + 端到端测试
 
 test-race: ## 竞态检测
 	go test -race ./...
+
+ci: lint ## 本地复现 CI 的全部检查（推送前跑一次）
+	go test ./... -count=1 -timeout 15m
+	go test -race ./internal/docx/ ./internal/store/ -count=1
+	go test ./internal/docx/ -bench . -benchtime 3x -run XXX
+	@echo "✔ 本地 CI 检查全部通过"
 
 vet: ## go vet
 	go vet ./...

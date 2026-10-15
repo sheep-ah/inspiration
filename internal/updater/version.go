@@ -2,6 +2,7 @@ package updater
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -114,15 +115,13 @@ func FormatVersion(tag string) string {
 	return "v" + NormalizeTag(tag)
 }
 
-// validateTag 校验标签格式，防止把异常字符串当成版本号。
+// strictVersionRe 只接受 vX.Y.Z / X.Y.Z（与发布工作流的标签规则一致）。
+var strictVersionRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+// validateTag 校验标签格式，防止把异常字符串（如 1.2.3-rc1、v1.2.3.4）当成版本号。
 func validateTag(tag string) error {
-	v := NormalizeTag(tag)
-	parts := strings.SplitN(v, ".", 3)
-	if len(parts) != 3 {
-		return fmt.Errorf("版本号格式不合法：%s", tag)
-	}
-	if _, err := strconv.Atoi(parts[0]); err != nil {
-		return fmt.Errorf("版本号格式不合法：%s", tag)
+	if !strictVersionRe.MatchString(NormalizeTag(tag)) {
+		return fmt.Errorf("版本号格式不合法：%s（要求 vX.Y.Z）", tag)
 	}
 	return nil
 }

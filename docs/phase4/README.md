@@ -103,6 +103,17 @@ validate → test → build(3 平台) → publish
 | Windows 构建失败 | chocolatey 安装 NSIS 后**不会刷新当前 runner 进程的 PATH**，后续步骤里的 Wails 找不到 `makensis` | 安装步骤显式把 NSIS 目录写入 `$GITHUB_PATH`，并在构建前打印 `makensis` 路径便于下一次诊断 |
 | （预防）Windows 打包脚本 | PowerShell 5.1 会把**无 BOM 的脚本按 ANSI 解码**，脚本里的中文路径会变乱码 | Windows 的 `run` 块改为**全部 ASCII**：动态查找 `build/bin/*.exe` 而不是写死中文文件名；已用脚本校验两个工作流的 pwsh 块不含任何非 ASCII 字符 |
 
+## 3.3 第二次 CI 运行的结果与修复（2026-10-16）
+
+第二次运行（`d09d85b`）暴露两个问题，都是**测试/检查设计问题而非功能缺陷**：
+
+| 失败 | 根因 | 修复 |
+|---|---|---|
+| lint 失败（staticcheck） | 新增更新器代码里有一处 `S1002`（与 bool 常量比较）；本地推送前漏跑 staticcheck | 修掉告警；新增 `make ci` 目标，一条命令在本地复现 CI 的全部检查（lint + test + race + bench），避免再次漏跑 |
+| test 失败（`-race` 步骤） | 性能用例的 5 秒阈值在 **竞态检测**下被击穿：本机生成 189ms，race 插桩后 runner 上 5.36s。绝对时间阈值在 race + 共享 runner 下没有意义 | 用 `//go:build race` 标记区分：race 模式下只记录耗时不做阈值判定；普通模式阈值放宽到 15 秒（本机基线 0.19 秒，仍有 60 倍余量，足以拦住数量级退化） |
+
+**第一条 CI 修复的效果已确认**：`go test`（非 race）步骤通过，说明"Linux 文件名 255 字节"问题已解决。
+
 ## 4. 发布操作手册（给使用者）
 
 ```bash

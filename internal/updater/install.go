@@ -49,6 +49,9 @@ func Apply(ctx context.Context, opts ApplyOptions) (*ApplyResult, error) {
 	if opts.WorkDir == "" {
 		opts.WorkDir = os.TempDir()
 	}
+	if err := os.MkdirAll(opts.WorkDir, 0o755); err != nil {
+		return nil, fmt.Errorf("无法创建更新工作目录：%w", err)
+	}
 	if opts.Progress == nil {
 		opts.Progress = func(string) {}
 	}

@@ -196,11 +196,17 @@ jobs:
           $proc = Start-Process -FilePath $exe.FullName `
             -ArgumentList @("--selfcheck", "--data-dir", "$env:RUNNER_TEMP\insp-rel-smoke") `
             -Wait -PassThru -NoNewWindow
+          Write-Host "selfcheck exit code: $($proc.ExitCode)"
           if ($proc.ExitCode -ne 0) { throw "selfcheck failed (exit code $($proc.ExitCode))" }
-          $v = $exe.VersionInfo.ProductVersion
-          Write-Host "artifact product version: $v"
-          if ($v -ne "${{ needs.validate.outputs.version }}") {
-            throw "artifact version ($v) does not match tag (${{ needs.validate.outputs.version }})"
+          # 用应用自己报告的版本（--version）：同时验证二进制可运行 + 版本与标签一致
+          $logFile = Join-Path $env:RUNNER_TEMP "insp-version.txt"
+          $vproc = Start-Process -FilePath $exe.FullName -ArgumentList @("--version") `
+            -Wait -PassThru -NoNewWindow -RedirectStandardOutput $logFile
+          $reported = (Get-Content $logFile -Raw).Trim()
+          Write-Host "reported version: $reported"
+          Write-Host "resource version: $($exe.VersionInfo.ProductVersion)"
+          if ($reported -ne "${{ github.ref_name }}") {
+            throw "binary reports version ($reported) but tag is ${{ github.ref_name }}"
           }
           Write-Host "version matches tag and binary starts successfully"
 

@@ -45,7 +45,7 @@ func applyPlatform(ctx context.Context, opts ApplyOptions) (*ApplyResult, error)
 		opts.WorkDir = os.TempDir()
 	}
 	scriptPath := filepath.Join(opts.WorkDir, fmt.Sprintf("inspiration-update-%d.cmd", time.Now().Unix()))
-	method, script := windowsUpdateScript(opts.DownloadedPath, exePath)
+	method, script := windowsUpdateScript(os.Getpid(), opts.DownloadedPath, exePath)
 
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		return nil, fmt.Errorf("无法创建更新脚本：%w", err)
@@ -57,6 +57,7 @@ func applyPlatform(ctx context.Context, opts ApplyOptions) (*ApplyResult, error)
 	cmd := newUpdateScriptCommand(scriptPath, append(os.Environ(),
 		envUpdatePkg+"="+opts.DownloadedPath,
 		envUpdateExe+"="+exePath,
+		envUpdateExeName+"="+filepath.Base(exePath),
 	))
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("无法启动更新脚本：%w", err)

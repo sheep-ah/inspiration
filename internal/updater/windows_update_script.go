@@ -13,8 +13,9 @@ const maxWaitRounds = 30
 // 解成乱码，`if exist` / `copy` 就指向一个不存在的路径（表现为"装完了但没重启"或压根没覆盖）。
 // 环境变量是以 UTF-16 传递的，不受脚本编码影响，因此脚本本身可以保持纯 ASCII。
 const (
-	envUpdateExe = "INSPIRATION_UPDATE_EXE" // 当前应用 exe 的完整路径
-	envUpdatePkg = "INSPIRATION_UPDATE_PKG" // 已下载的更新包路径
+	envUpdateExe     = "INSPIRATION_UPDATE_EXE"      // 当前应用 exe 的完整路径
+	envUpdateExeName = "INSPIRATION_UPDATE_EXE_NAME" // 当前应用 exe 的文件名（tasklist 过滤用）
+	envUpdatePkg     = "INSPIRATION_UPDATE_PKG"      // 已下载的更新包路径
 )
 
 // windowsUpdateScript 生成"等应用退出 → 安装/覆盖 → 重启 → 自删"的批处理脚本。
@@ -30,41 +31,45 @@ const (
 //
 //  2. **不要内嵌中文路径**（见上面 envUpdate* 的说明）。
 //
-//  3. **不要用 tasklist/find 判断"应用是否已退出"**。曾经用 `tasklist /FI "PID eq N" | find "N"`
-//     匹配 PID：PID 会被系统复用，一旦被复用循环就永不退出——用户看到的是一个卡住的
-//     `find "45152"` 窗口和"更新一直没反应"。改成**直接探测能不能写 exe**：运行中的 exe
-//     被加载器非共享写持有，追加写必然失败；应用退出后立刻成功。既不需要 PID，
-//     也精确对应"我能不能替换它了"。追加的换行对 PE 文件无害，且紧接着就会被覆盖/重装。
+//  3. **判断"应用是否已退出"必须同时按 PID 与映像名过滤**。只用 PID 会被系统复用干扰：
+//     一旦 PID 被复用（脚本自己拉起的进程就可能拿到），tasklist 永远匹配得到，循环永不
+//     退出——现场是一个卡住的 `find "45152"` 窗口和"更新一直没反应"。加上
+//     `IMAGENAME eq <应用名>` 后，误匹配需要"同一个程序 + 同一个 PID"（即用户自己又打开了
+//     应用），概率极低；再加 30 轮上限兜底。
+//     注意：曾试过"探测 exe 能否追加写入"来免掉 PID（`>>"exe" echo.` 的 errorlevel），
+//     实测**不可靠**——运行中的 exe 拒绝追加，但重定向失败并不会把 errorlevel 置 1，
+//     脚本会当成"已经退出"直接往下走（CI 抓到了：耗时 56ms 就去覆盖，结果 copy 失败）。
 //
 //  4. **不要用 timeout 等待**。timeout.exe 需要控制台输入句柄（脚本以隐藏控制台运行，
 //     见 install_windows.go 的启动参数），改用 ping 做延时。
 //
 // 返回的 method 用于 ApplyResult.Method：nsis-silent / portable-swap。
 //
-// downloadPath / exePath 只用于判定分支（安装包 vs 便携版），不再写进脚本内容；
-// 脚本通过 envUpdatePkg / envUpdateExe 读取它们，因此脚本主体是纯 ASCII。
-func windowsUpdateScript(downloadPath, exePath string) (method, script string) {
-	return windowsUpdateScriptLimited(downloadPath, exePath, maxWaitRounds)
+// pid / downloadPath / exePath 都不写进脚本内容：PID 直接用，另外两个路径由启动方通过
+// 环境变量传入，因此脚本主体是纯 ASCII。
+func windowsUpdateScript(pid int, downloadPath, exePath string) (method, script string) {
+	return windowsUpdateScriptLimited(pid, downloadPath, exePath, maxWaitRounds)
 }
 
 // windowsUpdateScriptLimited 与 windowsUpdateScript 相同，但可以指定等待轮数上限。
 // 存在的意义是可测性：单测把上限压到几轮，既能验证"应用还在运行时必须等待"，
 // 又不会把测试拖住。
-func windowsUpdateScriptLimited(downloadPath, exePath string, maxRounds int) (method, script string) {
+func windowsUpdateScriptLimited(pid int, downloadPath, exePath string, maxRounds int) (method, script string) {
 	if maxRounds <= 0 {
 		maxRounds = maxWaitRounds
 	}
 	lines := []string{
 		"@echo off",
 		"setlocal",
-		// 两个路径都由启动方通过环境变量给出；缺失时直接结束，避免弹出无意义的报错
+		// 路径与映像名都由启动方通过环境变量给出（脚本保持纯 ASCII）；缺失时直接结束
 		fmt.Sprintf("if not defined %s goto done", envUpdatePkg),
 		fmt.Sprintf("if not defined %s goto done", envUpdateExe),
+		fmt.Sprintf("if not defined %s goto done", envUpdateExeName),
 		"set tries=0",
 		":wait",
-		// 探测 exe 是否已可写（= 应用已退出）。失败说明还在运行，继续等。
-		fmt.Sprintf(`2>nul >>"%%%s%%" echo.`, envUpdateExe),
-		"if not errorlevel 1 goto ready",
+		// PID + 映像名双重过滤：只有"同一个程序且 PID 相同"才算还在运行
+		fmt.Sprintf(`tasklist /FI "PID eq %d" /FI "IMAGENAME eq %%%s%%" /NH 2>nul | find "%d" >nul`, pid, envUpdateExeName, pid),
+		"if errorlevel 1 goto ready",
 		"set /a tries+=1 >nul",
 		fmt.Sprintf("if %%tries%% GEQ %d goto done", maxRounds),
 		"ping -n 2 127.0.0.1 >nul",

@@ -45,16 +45,15 @@ func TestWindowsUpdateScriptExecutesEndToEnd(t *testing.T) {
 
 		runUpdateScriptE2E(t, f, "old")
 
-		// 探测 exe 可写时会向文件追加一个换行，因此这里是"前缀不变"而不是全等
-		if got := readTestFile(t, f.appPath); !strings.HasPrefix(got, old) {
+		if got := readTestFile(t, f.appPath); got != old {
 			t.Errorf("安装包分支不应替换 exe，实际内容：%q", got)
 		}
 	})
 }
 
-// 应用还在运行（exe 被占用）时脚本必须等待，退出后才动手。
-// 这条守的是"用 exe 可写性判断退出"这个机制本身——曾经用 tasklist/find 匹配 PID，
-// PID 被复用后循环永不退出，用户看到的是卡住的窗口和"更新一直没反应"。
+// 应用还在运行时脚本必须等待，退出后才动手。
+// 这条守的是等待机制本身：只用 PID 过滤会被系统复用干扰（PID 被复用后循环永不退出，
+// 现场是卡住的 `find "45152"` 窗口 + "更新一直没反应"），因此必须 PID + 映像名双重过滤。
 func TestWindowsUpdateScriptWaitsForRunningExe(t *testing.T) {
 	dir := t.TempDir()
 	appDir := filepath.Join(dir, "灵感")
@@ -64,7 +63,7 @@ func TestWindowsUpdateScriptWaitsForRunningExe(t *testing.T) {
 	appPath := filepath.Join(appDir, "灵感.exe")
 	pkgPath := filepath.Join(appDir, "灵感_new_portable.exe")
 
-	// 冒充"正在运行的应用"：ping.exe 的副本，跑约 2 秒
+	// 冒充"正在运行的应用"：ping.exe 的副本，跑约 2 秒（映像名与 exePath 一致，PID 也一致）
 	copySystemExe(t, "ping.exe", appPath)
 	holder := exec.Command(appPath, "-n", "3", "127.0.0.1")
 	if err := holder.Start(); err != nil {
@@ -72,12 +71,13 @@ func TestWindowsUpdateScriptWaitsForRunningExe(t *testing.T) {
 	}
 	defer func() { _ = holder.Process.Kill(); _, _ = holder.Process.Wait() }()
 
-	// 便携版分支的更新包：内容与 appPath 明显不同，便于验证"覆盖发生在等待之后"
-	payload := []byte(strings.Repeat("inspiration-new-version-payload\n", 40))
-	writeTestFile(t, pkgPath, string(payload))
+	// 便携版分支的更新包：换成另一个"能被安全执行"的系统程序（重启步骤会运行它），
+	// 其体积与 ping.exe 明显不同，便于验证覆盖确实发生
+	copySystemExe(t, "findstr.exe", pkgPath)
+	wantPayload := readTestFile(t, pkgPath)
 
 	scriptPath := filepath.Join(dir, "update.cmd")
-	method, script := windowsUpdateScript(pkgPath, appPath)
+	method, script := windowsUpdateScript(holder.Process.Pid, pkgPath, appPath)
 	if method != "portable-swap" {
 		t.Fatalf("应走 portable-swap，得到 %q", method)
 	}
@@ -91,7 +91,8 @@ func TestWindowsUpdateScriptWaitsForRunningExe(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := newUpdateScriptCommand(scriptPath, append(os.Environ(),
-		envUpdatePkg+"="+pkgPath, envUpdateExe+"="+appPath))
+		envUpdatePkg+"="+pkgPath, envUpdateExe+"="+appPath,
+		envUpdateExeName+"="+filepath.Base(appPath)))
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.WaitDelay = 15 * time.Second
 
@@ -111,8 +112,8 @@ func TestWindowsUpdateScriptWaitsForRunningExe(t *testing.T) {
 	if elapsed < 800*time.Millisecond {
 		t.Errorf("脚本没有等待运行中的应用退出（耗时 %v）", elapsed)
 	}
-	if got := readTestFile(t, appPath); got != string(payload) {
-		t.Errorf("应用没有被覆盖成更新包内容（长度 %d，期望 %d）", len(got), len(payload))
+	if got := readTestFile(t, appPath); got != wantPayload {
+		t.Errorf("应用没有被覆盖成更新包内容（长度 %d，期望 %d）", len(got), len(wantPayload))
 	}
 	if _, err := os.Stat(scriptPath); !os.IsNotExist(err) {
 		t.Errorf("脚本没有自删（err=%v）", err)
@@ -165,7 +166,9 @@ func (f *scriptFixture) appContent(marker string) string {
 func runUpdateScriptE2E(t *testing.T, f *scriptFixture, wantMarker string) {
 	t.Helper()
 
-	method, script := windowsUpdateScript(f.download, f.appPath)
+	// 等待目标故意用"当前测试进程 + 应用的映像名"：映像名不匹配，等待循环会立刻放行，
+	// 这几条用例只关心分支动作与重启，不关心等待（等待由专门的用例覆盖）
+	method, script := windowsUpdateScript(os.Getpid(), f.download, f.appPath)
 	scriptPath := filepath.Join(f.dir, "update.cmd")
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		t.Fatalf("写入脚本失败：%v", err)
@@ -183,7 +186,8 @@ func runUpdateScriptE2E(t *testing.T, f *scriptFixture, wantMarker string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	cmd := newUpdateScriptCommand(scriptPath, append(os.Environ(),
-		envUpdatePkg+"="+f.download, envUpdateExe+"="+f.appPath))
+		envUpdatePkg+"="+f.download, envUpdateExe+"="+f.appPath,
+		envUpdateExeName+"="+filepath.Base(f.appPath)))
 	cmd.Stdout, cmd.Stderr = out, out
 	cmd.WaitDelay = 15 * time.Second // 进程不退出时的兜底：先 Kill 再等一小会儿
 	if err := cmd.Start(); err != nil {

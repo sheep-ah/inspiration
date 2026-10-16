@@ -8,6 +8,15 @@ import (
 // maxWaitRounds 是"等待应用退出"的最大轮数（每轮 ping -n 2 ≈ 1 秒，约 5 分钟）。
 const maxWaitRounds = 300
 
+// 路径通过环境变量传给脚本，而不是把字面量写进 .cmd。原因：cmd.exe 按**控制台代码页**
+// 解码脚本字节，而我们的安装目录与数据目录都含中文（「灵感」）——UTF-8 写进 .cmd 后会被
+// 解成乱码，`if exist` / `copy` 就指向一个不存在的路径（表现为"装完了但没重启"或压根没覆盖）。
+// 环境变量是以 UTF-16 传递的，不受脚本编码影响，因此脚本本身可以保持纯 ASCII。
+const (
+	envUpdateExe = "INSPIRATION_UPDATE_EXE" // 当前应用 exe 的完整路径
+	envUpdatePkg = "INSPIRATION_UPDATE_PKG" // 已下载的更新包路径
+)
+
 // windowsUpdateScript 生成"等当前进程退出 → 安装/覆盖 → 重启 → 自删"的批处理脚本。
 //
 // 为什么单独放在非平台文件里：脚本内容不依赖 Windows 也能构造，放在这里可以让
@@ -28,6 +37,9 @@ const maxWaitRounds = 300
 //     进程号被新进程占用，无上限的循环会让更新永远不发生。
 //
 // 返回的 method 用于 ApplyResult.Method：nsis-silent / portable-swap。
+//
+// downloadPath / exePath 只用于判定分支（安装包 vs 便携版），不再写进脚本内容；
+// 脚本通过 envUpdatePkg / envUpdateExe 读取它们，因此脚本主体是纯 ASCII。
 func windowsUpdateScript(pid int, downloadPath, exePath string) (method, script string) {
 	return windowsUpdateScriptLimited(pid, downloadPath, exePath, maxWaitRounds)
 }
@@ -54,19 +66,24 @@ func windowsUpdateScriptLimited(pid int, downloadPath, exePath string, maxRounds
 		"ping -n 2 127.0.0.1 >nul",
 		"goto wait",
 		":ready",
+		// 两个路径都由启动方通过环境变量给出；缺失时直接结束，避免弹出无意义的报错
+		fmt.Sprintf("if not defined %s goto done", envUpdatePkg),
+		fmt.Sprintf("if not defined %s goto done", envUpdateExe),
 	}
 
 	if isSetupPackage(downloadPath) {
 		method = "nsis-silent"
 		// /wait：等安装器结束再决定是否重启
-		lines = append(lines, fmt.Sprintf(`start "" /wait "%s" /S`, downloadPath))
+		lines = append(lines, fmt.Sprintf(`start "" /wait "%%%s%%" /S`, envUpdatePkg))
 	} else {
 		method = "portable-swap"
-		lines = append(lines, fmt.Sprintf(`copy /y "%s" "%s" >nul`, downloadPath, exePath))
+		lines = append(lines,
+			fmt.Sprintf(`copy /y "%%%s%%" "%%%s%%" >nul`, envUpdatePkg, envUpdateExe))
 	}
 
 	lines = append(lines,
-		fmt.Sprintf(`if exist "%s" start "" "%s"`, exePath, exePath),
+		":done",
+		fmt.Sprintf(`if exist "%%%s%%" start "" "%%%s%%"`, envUpdateExe, envUpdateExe),
 		// 自删：`(goto)` 让 cmd 立刻停止读取当前脚本文件，之后删它就不会报
 		// "找不到批处理文件"（直接写 `del "%~f0"` 作为最后一行有这个风险）。
 		// 这一行同样不经过 fmt：`%~f0` 里的 % 交给 Sprintf 会变成动词转义。

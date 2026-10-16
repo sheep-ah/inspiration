@@ -50,7 +50,14 @@ func applyPlatform(ctx context.Context, opts ApplyOptions) (*ApplyResult, error)
 
 	// 直接执行脚本（不再用 `start /min`）：脚本内改用 ping 做延时，不需要控制台，
 	// 因此窗口可以完全隐藏，全程不会出现命令行窗口。
+	//
+	// 路径通过环境变量传入（脚本本身保持纯 ASCII）：cmd.exe 按控制台代码页解码脚本
+	// 字节，中文安装路径（「灵感」）写进 .cmd 会变成乱码，导致覆盖/重启指向不存在的路径。
 	cmd := exec.Command("cmd", "/c", scriptPath)
+	cmd.Env = append(os.Environ(),
+		envUpdatePkg+"="+opts.DownloadedPath,
+		envUpdateExe+"="+exePath,
+	)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: createDetachedProcess | createNewProcessGroup,
 	}

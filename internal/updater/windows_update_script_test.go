@@ -30,6 +30,22 @@ func TestWindowsUpdateScriptUsesCRLF(t *testing.T) {
 	}
 }
 
+// 脚本必须是纯 ASCII：cmd.exe 按控制台代码页解码脚本字节，中文路径（安装目录含「灵感」）
+// 写进 .cmd 会被解成乱码，导致 if exist / copy 指向不存在的路径。路径一律走环境变量。
+func TestWindowsUpdateScriptIsASCIIOnly(t *testing.T) {
+	_, script := windowsUpdateScript(1234, `C:\dl\inspiration_0.1.2_windows_amd64_setup.exe`, `C:\Program Files\灵感\灵感.exe`)
+	for i, r := range script {
+		if r > 0x7F {
+			t.Fatalf("脚本第 %d 字节起出现非 ASCII 字符 %q；中文路径必须通过环境变量传入：\n%s", i, r, script)
+		}
+	}
+	for _, want := range []string{"INSPIRATION_UPDATE_PKG", "INSPIRATION_UPDATE_EXE", "if not defined INSPIRATION_UPDATE_PKG goto done"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("脚本缺少环境变量引用 %q：\n%s", want, script)
+		}
+	}
+}
+
 // 无控制台（DETACHED_PROCESS）下不能用 timeout：它需要控制台输入句柄，
 // 会直接报 "ERROR: Input redirection is not supported"，等待循环失效。
 func TestWindowsUpdateScriptAvoidsConsoleOnlyTools(t *testing.T) {
@@ -66,13 +82,13 @@ func TestWindowsUpdateScriptBranches(t *testing.T) {
 	if method != "nsis-silent" {
 		t.Errorf("安装包应走 nsis-silent，得到 %q", method)
 	}
-	if !strings.Contains(setupScript, `start "" /wait "C:\dl\inspiration_0.1.2_windows_amd64_setup.exe" /S`) {
+	if !strings.Contains(setupScript, `start "" /wait "%INSPIRATION_UPDATE_PKG%" /S`) {
 		t.Errorf("安装包分支应静默安装并等待：\n%s", setupScript)
 	}
 	if strings.Contains(setupScript, "copy /y") {
 		t.Error("安装包分支不应覆盖 exe")
 	}
-	if !strings.Contains(setupScript, `if exist "`+exePath+`" start "" "`+exePath+`"`) {
+	if !strings.Contains(setupScript, `if exist "%INSPIRATION_UPDATE_EXE%" start "" "%INSPIRATION_UPDATE_EXE%"`) {
 		t.Errorf("安装后应重启应用：\n%s", setupScript)
 	}
 
@@ -80,7 +96,7 @@ func TestWindowsUpdateScriptBranches(t *testing.T) {
 	if method != "portable-swap" {
 		t.Errorf("便携版应走 portable-swap，得到 %q", method)
 	}
-	if !strings.Contains(portableScript, `copy /y "C:\dl\灵感.exe" "`+exePath+`" >nul`) {
+	if !strings.Contains(portableScript, `copy /y "%INSPIRATION_UPDATE_PKG%" "%INSPIRATION_UPDATE_EXE%" >nul`) {
 		t.Errorf("便携版分支应覆盖 exe：\n%s", portableScript)
 	}
 	if strings.Contains(portableScript, "/wait") {

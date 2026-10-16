@@ -156,18 +156,24 @@ func runUpdateScriptE2E(t *testing.T, f *scriptFixture, wantMarker string) {
 		}
 	}
 
-	// 重启步骤会启动应用，应用写出标记文件
+	// 重启步骤会启动应用，应用写出标记文件。
+	// 注意：不能只等"文件存在"——cmd.exe 是先创建重定向目标再写入内容，
+	// 存在但还没写完时会读到空串（CI#33 就是这么偶发失败的）。等到内容非空为止。
 	deadline := time.Now().Add(20 * time.Second)
+	var got string
 	for {
-		if _, err := os.Stat(f.marker); err == nil {
-			break
+		if data, err := os.ReadFile(f.marker); err == nil {
+			if got = strings.TrimSpace(string(data)); got != "" {
+				break
+			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("应用没有被重新启动（缺少 %s）\n输出：%s\n脚本：\n%s", f.marker, scriptOutput, script)
+			t.Fatalf("应用没有被重新启动或标记为空（%s，读到 %q）\n输出：%s\n脚本：\n%s",
+				f.marker, got, scriptOutput, script)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if got := strings.TrimSpace(readTestFile(t, f.marker)); got != wantMarker {
+	if got != wantMarker {
 		t.Errorf("重启的应用不是期望的版本：标记为 %q，期望 %q", got, wantMarker)
 	}
 

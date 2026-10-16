@@ -199,7 +199,7 @@
 | 现象 | 上传模板、生成合同时出现"黑框一闪"或整个转换期间挂着命令行窗口 |
 | 根因 | 应用是 GUI 子系统（自身无控制台）。Windows 启动控制台程序时若不在 `STARTUPINFO` 里指定隐藏窗口，系统会**为子进程新建控制台窗口**。代码里所有 `exec.Command` 都未做抑制：`converter` 的 `reg query`（通道探测，每次上传/生成都会跑，最多 4 次：Word.Application + KWPS + WPS + 复核）、`powershell -File convert.ps1`（`.doc` 转换与自检回读）、`app` 的 `powershell`（错误提示框）、`cmd /c start`（打开文件/文件夹） |
 | 修复 | 新增 `internal/sysproc`（Windows 实现置 `HideWindow=true` 与 `CREATE_NO_WINDOW`，保留已有 `CreationFlags`；非 Windows 为空操作），并在上述全部启动点调用：`converter.regProgIDExists`、`converter.runCommand`、`app.openPath`、`app.revealPath`、`app.ShowStartupError` |
-| 保留的例外 | 更新流程的批处理仍用最小化窗口：脚本内 `timeout /t 1` 依赖控制台，去掉控制台会让等待循环忙转（见 `internal/updater/install_windows.go` 注释） |
+| 保留的例外 | 无。更新流程的批处理已改为无窗口执行（`sysproc.HideWindow` + 不再用 `start /min`，脚本内改用 `ping` 延时而非需要控制台的 `timeout`）；命令行的视觉效果待 Windows 真机复验 |
 | 验证 | ✅ 本机：`GOOS=windows` 编译 + `go vet` + `staticcheck`（Linux/Windows 视角）全过；`make ci` 全绿。✅ CI：新增 windows job 步骤真实执行 `go test ./internal/sysproc/ -count=1 -v`（断言两个标志位已设置、不覆盖已有 CreationFlags、子进程仍能执行并回传输出） |
 | 未验证 | 在真实 Windows 桌面上"看不到黑框"这一**视觉效果**：需要用户在有 Word/WPS 的 Windows 上上传一次 `.doc` 模板并生成一份 `.doc` 合同确认 |
 

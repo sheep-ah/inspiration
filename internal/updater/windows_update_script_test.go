@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -42,11 +43,18 @@ func TestWindowsUpdateScriptAvoidsConsoleOnlyTools(t *testing.T) {
 		"goto wait",
 		"ping -n 2 127.0.0.1 >nul",
 		`tasklist /FI "PID eq 4321" /NH 2>nul | find "4321" >nul`,
+		"if errorlevel 1 goto ready",
+		":ready",
+		fmt.Sprintf("if %%tries%% GEQ %d goto ready", maxWaitRounds),
 		`del "%~f0"`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("脚本缺少必要内容 %q：\n%s", want, script)
 		}
+	}
+	// 等待必须有上限：PID 被复用会让无上限循环永不退出，更新永远不发生
+	if maxWaitRounds <= 0 {
+		t.Error("maxWaitRounds 必须为正数")
 	}
 }
 

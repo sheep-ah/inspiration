@@ -143,7 +143,8 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 6. **GitHub Actions 步骤退出码**取最后一条命令的结果：不要以可能失败的命令结尾（如 `where.exe` 找不到就返回 1）
 7. **macOS dmg 必须带安装别名**：`hdiutil create -srcfolder App.app` 打出的 dmg 根目录只有一个 `.app`，没有指向 `/Applications` 的符号链接，用户双击只是"从只读卷运行"，看起来像"打开了但没安装"。统一用 `scripts/make-dmg.sh`（暂存目录放 `.app` + `Applications` 别名，打完挂载自检，缺别名就失败且不产出 dmg）
 8. **shell 里 `$VAR` 紧邻中文字符**：`"$OUT_DMG（"` 会被解析成变量名 `OUT_DMG（`，`set -u` 下报 unbound variable。中文相邻的变量一律写 `${VAR}`
-9. **Windows 上子进程会弹控制台窗口**：应用是 GUI 子系统（自身无控制台），启动控制台程序（`cmd`/`powershell`/`reg`）时 Windows 会**为它新建一个控制台窗口**。用户看到的就是"上传模板/生成合同时弹出命令行执行脚本"。所有 `exec.Command*` 之后必须调用 `sysproc.HideWindow(cmd)`（`internal/sysproc`，非 Windows 平台为空操作），它会置 `HideWindow`（SW_HIDE）并加 `CREATE_NO_WINDOW`。唯一例外是更新流程的批处理（自身需要 `timeout /t`，故保留最小化窗口）
+9. **Windows 上子进程会弹控制台窗口**：应用是 GUI 子系统（自身无控制台），启动控制台程序（`cmd`/`powershell`/`reg`）时 Windows 会**为它新建一个控制台窗口**。用户看到的就是"上传模板/生成合同时弹出命令行执行脚本"。所有 `exec.Command*` 之后必须调用 `sysproc.HideWindow(cmd)`（`internal/sysproc`，非 Windows 平台为空操作），它会置 `HideWindow`（SW_HIDE）并加 `CREATE_NO_WINDOW`。更新流程的批处理同样走这条路径（脚本内用 `ping` 延时，不依赖控制台，因此不需要"最小化窗口"这种折中）
+10. **Windows 批处理脚本必须用 CRLF 行尾**：`cmd.exe` 执行 `goto` 时按**字节偏移**重新定位脚本文件，LF-only 会让偏移算错，`goto` 之后从行中间继续执行——现场表现为 `'el'`/`'tart'`/`'/nobreak'` 这类"碎片命令"、更新静默失败（v0.1.0 的真实故障，见 `docs/phase6/acceptance-report.md` §9.4）。生成 `.cmd` 时统一走 `updater.windowsUpdateScript()`，单测锁定"无裸 LF"。同理：无控制台场景不要用 `timeout.exe`（需要控制台输入句柄），改用 `ping -n N 127.0.0.1 >nul` 延时
 
 ## 6. CI/CD
 

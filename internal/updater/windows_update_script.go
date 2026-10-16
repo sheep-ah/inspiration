@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// maxWaitRounds 是"等待应用退出"的最大轮数（每轮 ping -n 2 ≈ 1 秒，约 5 分钟）。
+const maxWaitRounds = 300
+
 // windowsUpdateScript 生成"等当前进程退出 → 安装/覆盖 → 重启 → 自删"的批处理脚本。
 //
 // 为什么单独放在非平台文件里：脚本内容不依赖 Windows 也能构造，放在这里可以让
@@ -21,18 +24,26 @@ import (
 //     DETACHED_PROCESS（无控制台）启动的，`timeout /t 1` 会直接报
 //     "ERROR: Input redirection is not supported"。改用 ping 做无控制台延时。
 //
+//  3. **等待必须有上限**（maxWaitRounds）。PID 会被系统复用：万一被杀掉等待的
+//     进程号被新进程占用，无上限的循环会让更新永远不发生。
+//
 // 返回的 method 用于 ApplyResult.Method：nsis-silent / portable-swap。
 func windowsUpdateScript(pid int, downloadPath, exePath string) (method, script string) {
 	lines := []string{
 		"@echo off",
 		"setlocal",
+		"set tries=0",
 		":wait",
 		// 用 PID 精确过滤，避免杀掉别的进程；find 只在有输出行时返回 0。
 		fmt.Sprintf(`tasklist /FI "PID eq %d" /NH 2>nul | find "%d" >nul`, pid, pid),
-		"if not errorlevel 1 (",
-		"  ping -n 2 127.0.0.1 >nul",
-		"  goto wait",
-		")",
+		"if errorlevel 1 goto ready",
+		// 上限约 5 分钟（ping -n 2 ≈ 1 秒/轮）：PID 被系统复用、或应用因故迟迟不退时，
+		// 无限等待会让更新永远不发生——到点就照常往下走。
+		"set /a tries+=1 >nul",
+		fmt.Sprintf("if %%tries%% GEQ %d goto ready", maxWaitRounds),
+		"ping -n 2 127.0.0.1 >nul",
+		"goto wait",
+		":ready",
 	}
 
 	if isSetupPackage(downloadPath) {

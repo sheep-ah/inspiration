@@ -3,6 +3,7 @@
 package updater
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,8 +73,15 @@ func runUpdateScriptE2E(t *testing.T, dir, download, appPath, marker, wantMarker
 	}
 
 	started := time.Now()
-	out, err := exec.Command("cmd", "/c", scriptPath).CombinedOutput()
+	// 脚本本身有等待上限，这里再加一道 90 秒兜底：真出现死循环时测试要快速失败，
+	// 而不是把整个 CI job 拖住。
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "cmd", "/c", scriptPath).CombinedOutput()
 	elapsed := time.Since(started)
+	if ctx.Err() != nil {
+		t.Fatalf("脚本执行超过 90 秒未结束（疑似等待循环没有退出）\n脚本：\n%s", script)
+	}
 	if err != nil {
 		t.Fatalf("脚本执行失败（method=%s）：%v\n输出：%s\n脚本：\n%s", method, err, out, script)
 	}

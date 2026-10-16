@@ -66,7 +66,10 @@ func runUpdateScriptE2E(t *testing.T, dir, download, appPath, marker, wantMarker
 	}
 	defer func() { _ = holder.Process.Kill(); _, _ = holder.Process.Wait() }()
 
-	method, script := windowsUpdateScript(holder.Process.Pid, download, appPath)
+	// 等待上限压到 4 轮（≈4 秒）：既能验证"持有进程还活着时会等待"，又保证即使
+	// 这个 PID 之后恰好被复用，脚本也会很快继续——不让测试依赖 PID 复用的运气。
+	const rounds = 4
+	method, script := windowsUpdateScriptLimited(holder.Process.Pid, download, appPath, rounds)
 	scriptPath := filepath.Join(dir, "update.cmd")
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		t.Fatalf("写入脚本失败：%v", err)

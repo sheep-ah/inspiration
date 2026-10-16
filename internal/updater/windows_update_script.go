@@ -29,6 +29,16 @@ const maxWaitRounds = 300
 //
 // 返回的 method 用于 ApplyResult.Method：nsis-silent / portable-swap。
 func windowsUpdateScript(pid int, downloadPath, exePath string) (method, script string) {
+	return windowsUpdateScriptLimited(pid, downloadPath, exePath, maxWaitRounds)
+}
+
+// windowsUpdateScriptLimited 与 windowsUpdateScript 相同，但可以指定等待轮数上限。
+// 存在的意义是可测性：单测把上限压到几轮，既能验证"被杀进程还在时会等待"，
+// 又不会因为 PID 恰好被复用而把测试拖住（曾把 CI 的 Windows job 拖到 11 分钟）。
+func windowsUpdateScriptLimited(pid int, downloadPath, exePath string, maxRounds int) (method, script string) {
+	if maxRounds <= 0 {
+		maxRounds = maxWaitRounds
+	}
 	lines := []string{
 		"@echo off",
 		"setlocal",
@@ -37,10 +47,10 @@ func windowsUpdateScript(pid int, downloadPath, exePath string) (method, script 
 		// 用 PID 精确过滤，避免杀掉别的进程；find 只在有输出行时返回 0。
 		fmt.Sprintf(`tasklist /FI "PID eq %d" /NH 2>nul | find "%d" >nul`, pid, pid),
 		"if errorlevel 1 goto ready",
-		// 上限约 5 分钟（ping -n 2 ≈ 1 秒/轮）：PID 被系统复用、或应用因故迟迟不退时，
-		// 无限等待会让更新永远不发生——到点就照常往下走。
+		// 上限（ping -n 2 ≈ 1 秒/轮）：PID 会被系统复用，一旦被等待的进程号被新进程
+		// 占用，无上限的循环会让更新永远不发生——到点就照常往下走。
 		"set /a tries+=1 >nul",
-		fmt.Sprintf("if %%tries%% GEQ %d goto ready", maxWaitRounds),
+		fmt.Sprintf("if %%tries%% GEQ %d goto ready", maxRounds),
 		"ping -n 2 127.0.0.1 >nul",
 		"goto wait",
 		":ready",

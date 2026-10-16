@@ -93,6 +93,18 @@ func TestWindowsUpdateScriptBranches(t *testing.T) {
 	}
 }
 
+func TestWindowsUpdateScriptRespectsRoundLimit(t *testing.T) {
+	if _, s := windowsUpdateScriptLimited(1, `C:\dl\a.exe`, `C:\app\b.exe`, 7); !strings.Contains(s, "if %tries% GEQ 7 goto ready") {
+		t.Errorf("自定义等待轮数未生效：\n%s", s)
+	}
+	// 非法值回落到默认上限：0 轮等于完全不等待，会把"应用还没退出"的情况变成安装失败
+	for _, bad := range []int{0, -1} {
+		if _, s := windowsUpdateScriptLimited(1, `C:\dl\a.exe`, `C:\app\b.exe`, bad); !strings.Contains(s, fmt.Sprintf("if %%tries%% GEQ %d goto ready", maxWaitRounds)) {
+			t.Errorf("轮数 %d 未回落到默认上限 %d：\n%s", bad, maxWaitRounds, s)
+		}
+	}
+}
+
 func TestIsSetupPackage(t *testing.T) {
 	for _, name := range []string{
 		"inspiration_0.1.2_windows_amd64_setup.exe",

@@ -217,7 +217,9 @@ jobs:
           # 2) internal/updater 的 Windows 用例：把生成的更新批处理脚本真跑一遍
           #    （等待进程退出 → 覆盖/静默安装 → 重启 → 自删）。LF 行尾会让 cmd 的
           #    goto 错位、脚本碎片化执行，这里会直接失败。
-          Invoke-GoTest "Windows 更新脚本真实执行" @("test","./internal/updater/","-run","TestWindowsUpdateScript","-count=1","-v","-timeout","180s")
+          #    -count=3：用例要起真实进程并按时间等待，跑三次能抓到偶发竞态
+          #    （CI#33 就出现过一次"读到还没写完的标记文件"）。
+          Invoke-GoTest "Windows 更新脚本真实执行" @("test","./internal/updater/","-run","TestWindowsUpdateScript","-count=3","-v","-timeout","180s")
 
       - name: 冒烟测试（Windows：GUI 子系统无 stdout，校验退出码与版本资源）
         if: runner.os == 'Windows'

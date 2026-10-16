@@ -2,7 +2,7 @@
 
 本地运行的合同生成桌面应用：导入 DOCX 模板，填写 11 个基础字段，一键生成合同。合同内容与模板文件默认只在本机处理，不上传。
 
-- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.2**，Windows 用户若装的是 v0.1.1 及更早版本，请手动装一次本版本，旧版自带更新器有缺陷）
+- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.3**；Windows 用户若装的是 v0.1.1 及更早版本，请手动装一次 v0.1.2 或更高版本——旧版自带的更新器有缺陷）
 - 使用说明：[`docs/user-guide.md`](docs/user-guide.md) ｜ 开发文档：[`docs/development.md`](docs/development.md) ｜ 验收报告：[`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)
 
 - 应用形态：桌面应用（Windows x64 / macOS Intel / macOS Apple Silicon）

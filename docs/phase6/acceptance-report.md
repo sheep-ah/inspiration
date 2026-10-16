@@ -229,14 +229,16 @@
 | 项 | 内容 |
 |---|---|
 | 现象 | 应用退出后更新完全没发生，只有一屏碎片报错；NSIS 安装与重启两步均未执行 |
-| 根因 | 生成的 `update.cmd` 是 **LF 行尾**（Go 字符串直接写文件）。`cmd.exe` 执行 `goto` 时按**字节偏移**重新定位脚本文件，LF-only 会让偏移算错——`goto wait` 之后从行中间继续执行，于是把 `del`、`start`、`timeout /t 1` 切成 `el`、`tart`、`/nobreak` 这类碎片命令；碎片里恰好执行到 `del "%~f0"`，脚本被提前删除，cmd 继续读就报"找不到批处理文件" |
-| 修复 1（根治） | 抽出 `updater.windowsUpdateScript()`，脚本统一用 CRLF 拼接并写明原因；自删行不再经过 `fmt.Sprintf`（避免 `%~f0` 被当作格式动词）。`cat -A` 实测每行都是 `^M$` |
-| 修复 2 | 等待延时 `timeout /t 1 /nobreak` → `ping -n 2 127.0.0.1 >nul`：`timeout.exe` 需要控制台输入句柄，而更新脚本以 `DETACHED_PROCESS`（无控制台）运行，`timeout` 本身就会失败 |
-| 修复 3 | 启动方式 `cmd /c start "" /min <script>` → 直接 `cmd /c <script>` + `sysproc.HideWindow`：更新全程不再出现命令行窗口（§9.2 那条"保留最小化窗口"的例外随之取消） |
-| 修复 4（健壮性） | 等待循环加上限（`maxWaitRounds`，约 5 分钟）并把轮数参数化：PID 会被系统复用，无上限循环会让更新**永远**不发生；轮数非法时回落到默认上限（0 轮等于完全不等待） |
-| 回归防护 | 全平台单测锁定脚本不变量：行尾 CRLF/无裸 LF、不使用 `timeout`、两个分支的命令行内容、自删在最后一行、轮数上限生效与非法值回落 |
-| Windows 实测用例 | `internal/updater` 的 Windows 用例真实执行生成的脚本：等待持有进程退出 → 覆盖/静默安装 → 重启（标记文件）→ 自删，并断言输出无碎片命令；CI 的 windows job 执行它 |
-| 测试基础设施踩坑 | ① 无上限等待循环把 CI 的 windows job 拖到 11 分钟（#20）；② 用 `CombinedOutput` 抓脚本输出会**卡死在管道 EOF**——脚本里 `start` 拉起的子进程继承了管道句柄，外层 `cmd.exe` 退出甚至被 ctx kill 后管道仍不 EOF（#22 卡 20+ 分钟）。改为输出重定向到文件 + `WaitDelay` 兜底 + CI 侧 `-timeout` 上限 |
+| 根因 A | 生成的 `update.cmd` 是 **LF 行尾**（Go 字符串直接写文件）。`cmd.exe` 执行 `goto` 时按**字节偏移**重新定位脚本文件，LF-only 会让偏移算错——`goto wait` 之后从行中间继续执行，于是把 `del`、`start`、`timeout /t 1` 切成 `el`、`tart`、`/nobreak` 这类碎片命令；碎片里恰好执行到 `del "%~f0"`，脚本被提前删除，cmd 继续读就报"找不到批处理文件" |
+| 根因 B | 脚本**内嵌了含中文的路径**（`%LOCALAPPDATA%\Programs\灵感\灵感.exe`、`%APPDATA%\灵感\update\...`），而 `cmd.exe` 按**控制台代码页**解码脚本字节：UTF-8 的中文被解成乱码，`if exist` / `copy` / `start` 全部指向不存在的路径。**即使 A 修好，这一层仍会让"安装包分支装完不重启、便携版分支根本没覆盖"** |
+| 修复 A（行尾） | 抽出 `updater.windowsUpdateScript()`，脚本统一用 CRLF 拼接并写明原因；自删改用 `(goto) 2>nul & del "%~f0"` 惯用法（避免 cmd 在脚本消失后继续读取而报错）。`cat -A` 实测每行都是 `^M$` |
+| 修复 B（路径） | 脚本不再内嵌任何路径，改用 `%INSPIRATION_UPDATE_PKG%` / `%INSPIRATION_UPDATE_EXE%`，由启动方通过 `cmd.Env` 传入（环境变量以 UTF-16 传递，不受脚本编码影响）→ **脚本成为纯 ASCII** |
+| 修复 C | 等待延时 `timeout /t 1 /nobreak` → `ping -n 2 127.0.0.1 >nul`：`timeout.exe` 需要控制台输入句柄，而更新脚本以 `DETACHED_PROCESS`（无控制台）运行，`timeout` 本身就会失败 |
+| 修复 D | 启动方式 `cmd /c start "" /min <script>` → 直接 `cmd /c <script>` + `sysproc.HideWindow`：更新全程不再出现命令行窗口（§9.2 那条"保留最小化窗口"的例外随之取消） |
+| 修复 E（健壮性） | 等待循环加上限（`maxWaitRounds`，约 5 分钟）并把轮数参数化：PID 会被系统复用，无上限循环会让更新**永远**不发生；轮数非法时回落到默认上限（0 轮等于完全不等待） |
+| 回归防护（全平台单测） | 行尾 CRLF/无裸 LF、**脚本不含任何非 ASCII 字节**、不使用 `timeout`、两个分支的命令行内容、自删在最后一行、轮数上限生效与非法值回落、变量缺失时安全结束 |
+| 回归防护（Windows 实测） | `internal/updater` 的 Windows 用例真实执行生成的脚本：应用与更新包放在**含中文的目录**里（贴近生产）、脚本与标记文件放 ASCII 目录，路径全走环境变量；断言等待持有进程退出 → 覆盖/静默安装 → 重启（标记文件）→ 自删，且输出无碎片命令。**CI#25 的 windows job 已通过**（[run #25](https://github.com/sheep-ah/inspiration/actions/runs/38889217480) step 11） |
+| 测试基础设施踩坑 | ① 无上限等待循环把 CI 的 windows job 拖到 11 分钟（#20）；② 用 `CombinedOutput` 抓脚本输出会**卡死在管道 EOF**——脚本里 `start` 拉起的子进程继承了管道句柄，外层 `cmd.exe` 退出甚至被 ctx kill 后管道仍不 EOF（#22 卡 20+ 分钟）→ 改为输出重定向到文件 + `WaitDelay` 兜底 + CI 侧 `-timeout` 上限；③ 本仓库 Actions 日志需管理权限（未登录 403），CI 步骤改为把失败输出打成 `::error:: ` 注解，运行页面即可看到详情（本次正是靠它定位到根因 B） |
 | 用户侧影响 | 修复只对**新版应用**生效：`v0.1.0`/`v0.1.1` 自带的更新器仍是坏的，无法自更新，需要手动安装一次修好的版本（v0.1.2 起），此后应用内更新才走新脚本 |
 | 仍未验证 | Windows 真机上的完整界面流程（下载 → 脚本 → 静默安装 → 重启 → 数据保留）：需要在 Windows 上从修好的版本更新到再下一个版本 |
 

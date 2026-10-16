@@ -46,7 +46,7 @@ func TestWindowsUpdateScriptAvoidsConsoleOnlyTools(t *testing.T) {
 		"if errorlevel 1 goto ready",
 		":ready",
 		fmt.Sprintf("if %%tries%% GEQ %d goto ready", maxWaitRounds),
-		`del "%~f0"`,
+		`(goto) 2>nul & del "%~f0"`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("脚本缺少必要内容 %q：\n%s", want, script)
@@ -88,7 +88,7 @@ func TestWindowsUpdateScriptBranches(t *testing.T) {
 	}
 	// 自删必须是最后一行，否则 cmd 可能在脚本消失后继续读取而报错
 	lines := strings.Split(strings.TrimRight(portableScript, "\r\n"), "\r\n")
-	if last := lines[len(lines)-1]; last != `del "%~f0"` {
+	if last := lines[len(lines)-1]; last != `(goto) 2>nul & del "%~f0"` {
 		t.Errorf("最后一行应为自删，实际是 %q", last)
 	}
 }

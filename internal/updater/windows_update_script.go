@@ -67,8 +67,10 @@ func windowsUpdateScriptLimited(pid int, downloadPath, exePath string, maxRounds
 
 	lines = append(lines,
 		fmt.Sprintf(`if exist "%s" start "" "%s"`, exePath, exePath),
-		// 自删。这一行不经过 fmt：`%~f0` 里的 % 交给 Sprintf 会变成动词转义。
-		`del "%~f0"`,
+		// 自删：`(goto)` 让 cmd 立刻停止读取当前脚本文件，之后删它就不会报
+		// "找不到批处理文件"（直接写 `del "%~f0"` 作为最后一行有这个风险）。
+		// 这一行同样不经过 fmt：`%~f0` 里的 % 交给 Sprintf 会变成动词转义。
+		`(goto) 2>nul & del "%~f0"`,
 	)
 
 	return method, strings.Join(lines, "\r\n") + "\r\n"

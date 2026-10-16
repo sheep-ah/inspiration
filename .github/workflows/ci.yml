@@ -199,15 +199,25 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # 注意：本仓库的 Actions 日志需要管理权限（未登录读不到），所以测试失败时把
+          # 输出尾部打成 ::error:: 注解——注解在运行页面 / 看板上直接可见。
+          function Invoke-GoTest([string]$label, [string[]]$goArgs) {
+            $out = (& go @goArgs 2>&1 | Out-String)
+            $code = $LASTEXITCODE
+            Write-Host $out
+            if ($code -ne 0) {
+              $tail = (($out -split "`r?`n" | Select-Object -Last 80) -join "`n")
+              $esc = $tail.Replace('%','%25').Replace("`r",'').Replace("`n",'%0A')
+              Write-Host "::error title=$label 失败::$esc"
+              throw "$label 失败（exit code $code）"
+            }
+          }
           # 1) internal/sysproc：HideWindow 置上 SW_HIDE + CREATE_NO_WINDOW、子进程仍能执行
-          go test ./internal/sysproc/ -count=1 -v -timeout 120s
-          if ($LASTEXITCODE -ne 0) { throw "sysproc tests failed (exit code $LASTEXITCODE)" }
+          Invoke-GoTest "sysproc 控制台窗口抑制" @("test","./internal/sysproc/","-count=1","-v","-timeout","120s")
           # 2) internal/updater 的 Windows 用例：把生成的更新批处理脚本真跑一遍
           #    （等待进程退出 → 覆盖/静默安装 → 重启 → 自删）。LF 行尾会让 cmd 的
           #    goto 错位、脚本碎片化执行，这里会直接失败。
-          #    -timeout 是兜底：用例万一卡住也只烧 3 分钟，不会拖住整个 job。
-          go test ./internal/updater/ -run 'TestWindowsUpdateScript' -count=1 -v -timeout 180s
-          if ($LASTEXITCODE -ne 0) { throw "windows update script tests failed (exit code $LASTEXITCODE)" }
+          Invoke-GoTest "Windows 更新脚本真实执行" @("test","./internal/updater/","-run","TestWindowsUpdateScript","-count=1","-v","-timeout","180s")
 
       - name: 冒烟测试（Windows：GUI 子系统无 stdout，校验退出码与版本资源）
         if: runner.os == 'Windows'

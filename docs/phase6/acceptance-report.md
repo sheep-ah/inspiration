@@ -282,12 +282,13 @@
 |---|---|
 | 现象 | 点击后既不报错也不弹窗，Finder/资源管理器无动静（错误提示也不会出现，因为命令本身启动成功了） |
 | 根因（**§9.2 修复引入的回归**） | §9.2 为消除控制台黑框，给所有子进程都调用了 `sysproc.HideWindow`（`STARTF_USESHOWWINDOW` + `SW_HIDE`）。但 `explorer.exe` 是 **GUI 程序**：给启动器设 SW_HIDE 会把**它要打开的那个窗口**一起隐藏——于是"启动成功但窗口不可见"，表现为点了没反应 |
-| 附带问题 | `/select,` 后的路径没加引号（`"/select,"+path`），含空格的路径会被 explorer 解析错 |
+| 附带问题 | 当时认为"`/select,` 后的路径要加引号"，于是把参数写成 `/select,"<path>"`（字面引号）——**这引入了第二个问题**：explorer 解析的是 Windows 分词**之后**的参数，文档里那对引号是给分词器的（explorer 实际拿到 `/select,C:\path`），字面引号让它拿到 `/select,"C:\path"`，路径非法 → 只把资源管理器开在默认位置。用户复验后反馈"窗口能开，但不是保存位置" |
+| 第二轮修复（v0.1.6） | 参数改为 `/select,<path>`（**不带字面引号**）：含空格的路径由 exec 的命令行转义自动加引号，分词后同样是干净路径。单测锁定"参数里不得出现字面引号"，另有 Windows 侧用例用 `syscall.EscapeArg` 钉住转义结果（只有包裹引号、没有 `\"`） |
 | 修复 | 1) `openCommand` 增加 `hideConsole` 语义：只有**控制台程序**（`cmd`/`powershell`/`reg`）才隐藏窗口，`explorer` 明确不隐藏（并在注释里写明原因）；2) `/select,"<path>"` 改为带引号的标准写法；3) 定位失败时兜底为"打开所在目录"，避免再次出现"点了完全没反应" |
 | 结构调整 | 命令构造抽成纯函数 `openCommandFor`/`revealCommandFor`（`internal/app/open.go`），Windows 的引号与"是否隐藏"两条约束因此可以在**任意平台单测**，不必等真机 |
 | 回归防护 | `internal/app/open_test.go`：Windows 定位文件必须 `explorer /select,"<path>"` 且 `hideConsole=false`；含空格路径必须带引号；Windows 打开文件必须 `cmd /c start "" <path>` 且 `hideConsole=true`；darwin/linux 的命令逐项断言 |
 | 仍未验证 | Windows 真机上的视觉效果（点「打开所在文件夹」应弹出资源管理器并选中该文件）——`explorer` 无法在本机或 CI 无交互会话中验证 |
-| 版本 | 修复随 **v0.1.4** 发布并已实测发布产物（发布记录见 §9.8） |
+| 版本 | 第一轮修复随 **v0.1.4** 发布；第二轮（去掉字面引号）随 **v0.1.6** 发布（见 §9.10） |
 
 ### 9.8 v0.1.4 发布记录（2026-10-16）
 

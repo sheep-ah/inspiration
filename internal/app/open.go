@@ -40,9 +40,16 @@ func revealCommandFor(goos, path string) openCommand {
 	case "darwin":
 		return openCommand{name: "open", args: []string{"-R", path}}
 	case "windows":
-		// /select 要求路径带引号，否则含空格的路径会解析不出来；
-		// 且不能设 hideConsole（见 openCommand 注释）。
-		return openCommand{name: "explorer", args: []string{`/select,"` + path + `"`}}
+		// 两个约束，缺一不可（都是真实踩出来的）：
+		//  1. **不能设 hideConsole**：explorer 是 GUI 程序，SW_HIDE 会把它要打开的窗口
+		//     一起隐藏，表现为"点了没反应"（v0.1.1 引入、v0.1.4 修掉）。
+		//  2. **路径不能带字面引号**：explorer 看的是 Windows 分词之后的参数——文档里的
+		//     `explorer.exe /select,"C:\path"` 中那对引号是给分词器的，explorer 拿到的
+		//     其实是 `/select,C:\path`。若我们在参数里塞进字面引号，它拿到的是
+		//     `/select,"C:\path"`，路径非法 → 只把资源管理器开在默认位置
+		//     （v0.1.4 引入、v0.1.6 修掉的第二个回归：窗口能开但不是保存位置）。
+		//     含空格的路径由 exec 的命令行转义自动加引号，分词后同样是干净的路径。
+		return openCommand{name: "explorer.exe", args: []string{"/select," + path}}
 	default:
 		return openCommand{name: "xdg-open", args: []string{filepath.Dir(path)}}
 	}

@@ -21,6 +21,7 @@
 | 阶段 5 应用内更新 | ✅ 已完成：`v0.1.0` 已正式发布，macOS 侧用真实发布包端到端验证通过（检查 → 下载 → 校验 → 安装 → 重启 → 数据保留），见 [`docs/phase5/`](docs/phase5/README.md)；Windows 更新路径待真机验证 |
 | 阶段 6 最终验收与交付 | ✅ 已完成：验收报告 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)、用户说明 [`docs/user-guide.md`](docs/user-guide.md)、开发文档 [`docs/development.md`](docs/development.md)；未验证项已逐条标注 |
 | 交付后修复：macOS dmg 缺安装别名 | ✅ 已修复并随 **v0.1.1** 发布（`scripts/make-dmg.sh` + 打包时挂载自检）：已下载发布包实测——卷内含 `灵感.app` 与 `Applications → /Applications` 别名，sha256 与 `checksums.txt` 一致。见 [`docs/phase4/README.md`](docs/phase4/README.md) §3.4 |
+| 交付后修复：检查更新报 403 | ✅ 已修复并随 **v0.1.11** 发布：检查更新改读发布资产 `latest.json`（发布 CDN，不受 GitHub 未登录 API 每小时 60 次、按 IP 计的限制），API 仅作兜底，并把服务端说明带进错误信息，见验收报告 §9.15 |
 | 交付后修复：更新下载容易超时 | ✅ 已修复并随 **v0.1.5** 发布：去掉 `http.Client.Timeout` 60 秒的整体上限（它连"读完响应体"一起算，10 MB 包要求 ≥166 KB/s），改为建连/首字节超时 + 90 秒停滞检测，见 [`docs/development.md`](docs/development.md) §3.4 |
 | 交付后修复：Windows「打开所在文件夹」| ✅ 已修复并随 **v0.1.6** 发布（两轮：v0.1.4 去掉对 explorer 的 SW_HIDE——它会把要打开的窗口一起隐藏；v0.1.6 去掉 `/select,` 参数里的字面引号——explorer 解析的是分词后的参数，带字面引号会当成非法路径、只开在默认位置），见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.7 |
 | 交付后修复：Windows 应用内更新 | ✅ 已修复并随 **v0.1.8** 发布（三轮：v0.1.2 脚本 CRLF + 纯 ASCII + 路径走环境变量；v0.1.7 脚本以隐藏控制台启动、不再弹出 find/tasklist 窗口；v0.1.8 等待"应用退出"改按 **PID + 映像名**双重过滤并把上限收到 30 轮，同时生产与 CI 用例共用同一套启动方式）。⚠️ **v0.1.0–v0.1.7 自带的更新器都不可靠，请手动装一次 v0.1.8 或更高版本**，此后才能用应用内更新；见验收报告 §9.4/§9.11 |

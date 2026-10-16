@@ -319,4 +319,18 @@
 | 发布包实测 | dmg 与 zip 的本地 sha256 与 `checksums.txt` 一致（`aafecf84…` / `b4146e39…`）；dmg 挂载含 `Applications → /Applications` 且 `--version` = `v0.1.5`、`codesign --verify` 通过；zip 解压后 `--version` = `v0.1.5`、`--selfcheck` 退出码 0；`latest.json` 六项资产正确 |
 | 待用户复验 | Windows 上"下载并更新"在较慢网络下应能完整下载（不再 60 秒掐断）；停滞时提示"下载停滞超过 90 秒…可重试" |
 
+### 9.10 v0.1.6 发布记录：定位文件落到默认位置（2026-10-16）
+
+用户复验 §9.7 时反馈：窗口能开出来了，但**不是**他选择的保存位置——即 §9.7 的第二轮根因（`/select,` 参数里的字面引号）。
+
+| 项 | 内容 |
+|---|---|
+| 版本提交 / 标签 | `d7262a5`（`chore(release): 0.1.6`），标签 `v0.1.6`；修复提交 `66ba7ff` |
+| 发布流水线 | Release run #7（<https://github.com/sheep-ah/inspiration/actions/runs/38902320705>）：六个 job **全部成功**，正式发布 8 个资产 |
+| 校验和一致性 | arm64 的 dmg/zip 本地 sha256 与 `checksums.txt` 一致（`16f1bd50…` / `2aedbcf7…`） |
+| 发布包实测 | dmg 挂载含 `Applications → /Applications`、`--version` = `v0.1.6`、`codesign --verify --deep --strict` 通过、自检通过；zip 解压后 `--version` = `v0.1.6`、`--selfcheck` 退出码 0；`latest.json` 六项资产正确（Windows 安装包 sha256 `498fd2b7…`） |
+| CI | CI#37 全绿；其中 windows job 的更新脚本实测用例**跑了 3 遍全部通过**（§9.4 的监控竞态修复得到验证） |
+| 待用户复验 | 生成合同 → 点「打开所在文件夹」应**弹出资源管理器并选中**该文件所在的保存位置 |
+| 后续手段（若仍不对） | 不再依赖 explorer 的命令行解析，改用 Windows 官方 API `SHOpenFolderAndSelectItems`（资源管理器"打开文件所在位置"用的就是它） |
+
 本章（§9）与 §7 的关系：§7 是"当前环境无法验证"的清单，§9 是"已发布产物上发现的缺陷及其修复"与"发布记录"，两者独立。

@@ -2,7 +2,7 @@
 
 本地运行的合同生成桌面应用：导入 DOCX 模板，填写 11 个基础字段，一键生成合同。合同内容与模板文件默认只在本机处理，不上传。
 
-- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.5**；Windows 用户若装的是 v0.1.1 及更早版本，请手动装一次 v0.1.2 或更高版本——旧版自带的更新器有缺陷）
+- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.6**；Windows 用户若装的是 v0.1.1 及更早版本，请手动装一次 v0.1.2 或更高版本——旧版自带的更新器有缺陷）
 - 使用说明：[`docs/user-guide.md`](docs/user-guide.md) ｜ 开发文档：[`docs/development.md`](docs/development.md) ｜ 验收报告：[`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)
 
 - 应用形态：桌面应用（Windows x64 / macOS Intel / macOS Apple Silicon）
@@ -22,7 +22,7 @@
 | 阶段 6 最终验收与交付 | ✅ 已完成：验收报告 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)、用户说明 [`docs/user-guide.md`](docs/user-guide.md)、开发文档 [`docs/development.md`](docs/development.md)；未验证项已逐条标注 |
 | 交付后修复：macOS dmg 缺安装别名 | ✅ 已修复并随 **v0.1.1** 发布（`scripts/make-dmg.sh` + 打包时挂载自检）：已下载发布包实测——卷内含 `灵感.app` 与 `Applications → /Applications` 别名，sha256 与 `checksums.txt` 一致。见 [`docs/phase4/README.md`](docs/phase4/README.md) §3.4 |
 | 交付后修复：更新下载容易超时 | ✅ 已修复并随 **v0.1.5** 发布：去掉 `http.Client.Timeout` 60 秒的整体上限（它连"读完响应体"一起算，10 MB 包要求 ≥166 KB/s），改为建连/首字节超时 + 90 秒停滞检测，见 [`docs/development.md`](docs/development.md) §3.4 |
-| 交付后修复：Windows「打开所在文件夹」无反应 | ✅ 已修复并随 **v0.1.4** 发布（GUI 程序不能设 SW_HIDE——会把要打开的窗口一起隐藏；`/select` 路径加引号；失败兜底为打开所在目录），见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.7 |
+| 交付后修复：Windows「打开所在文件夹」| ✅ 已修复并随 **v0.1.6** 发布（两轮：v0.1.4 去掉对 explorer 的 SW_HIDE——它会把要打开的窗口一起隐藏；v0.1.6 去掉 `/select,` 参数里的字面引号——explorer 解析的是分词后的参数，带字面引号会当成非法路径、只开在默认位置），见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.7 |
 | 交付后修复：Windows 应用内更新静默失败 | ✅ 已修复并随 **v0.1.2** 发布（脚本强制 CRLF + 纯 ASCII、路径走环境变量、`ping` 延时、隐藏窗口、等待上限），见验收报告 §9.5；Windows 侧已由 CI 真实执行脚本，真机界面流程待复验；`v0.1.0`/`v0.1.1` 自带更新器仍是坏的，需手动装一次 v0.1.2 |
 | 交付后修复：Windows 子进程弹命令行窗口 | ✅ 已修复并随 **v0.1.1** 发布（`internal/sysproc` 抑制控制台窗口，覆盖转换探测、`.doc` 转换、提示框、打开文件全部启动点）；CI 的 windows runner 真实执行了专项测试，见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.2；Windows 上的视觉效果待用户复验 |
 

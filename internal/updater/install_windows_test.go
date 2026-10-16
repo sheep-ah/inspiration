@@ -13,15 +13,14 @@ import (
 	"time"
 )
 
-// 真实执行生成的批处理脚本，覆盖"应用还没退出 → 覆盖/静默安装 → 重启 → 自删"整条链路。
+// 真实执行生成的批处理脚本，且**用与生产完全相同的启动方式**（newUpdateScriptCommand：
+// CREATE_NEW_CONSOLE + SW_HIDE）。这一点很关键：早先用默认参数启动脚本，测试进程自带控制台，
+// 于是漏掉了"无控制台时每个控制台子命令各自新开窗口/行为不同"这类只在生产暴露的问题
+// （用户看到过一个卡住的 `find "45152"` 窗口）。
 //
-// 刻意把应用与更新包放在**含中文的目录**里：生产的安装目录
-// （%LOCALAPPDATA%\Programs\灵感）与数据目录（%APPDATA%\灵感）都含中文，而 cmd.exe 按
-// **控制台代码页**解码脚本字节——路径若写进脚本内容就会变成乱码，表现为"装完了不重启"
-// 或"根本没覆盖"（v0.1.1 现场）。路径改为通过环境变量传递后必须仍然可用，本条用例守的就是它。
-//
-// 同时它也是 CRLF 的回归防护：LF 行尾会让 cmd 的 goto 错位、脚本碎片化执行，
-// 覆盖与重启步骤会被跳过（v0.1.0 现场：'el'/'tart'/'nobreak' 不是内部或外部命令）。
+// 用例把应用与更新包放在**含中文的目录**里：生产的安装目录（%LOCALAPPDATA%\Programs\灵感）
+// 与数据目录（%APPDATA%\灵感）都含中文，而 cmd.exe 按控制台代码页解码脚本字节——路径若写进
+// 脚本内容就会变成乱码（表现为"装完了不重启/根本没覆盖"），因此路径必须走环境变量。
 func TestWindowsUpdateScriptExecutesEndToEnd(t *testing.T) {
 	t.Run("便携版覆盖", func(t *testing.T) {
 		f := newScriptFixture(t, "portable")
@@ -46,10 +45,78 @@ func TestWindowsUpdateScriptExecutesEndToEnd(t *testing.T) {
 
 		runUpdateScriptE2E(t, f, "old")
 
-		if got := readTestFile(t, f.appPath); got != old {
-			t.Errorf("安装包分支不应覆盖 exe：%q", got)
+		// 探测 exe 可写时会向文件追加一个换行，因此这里是"前缀不变"而不是全等
+		if got := readTestFile(t, f.appPath); !strings.HasPrefix(got, old) {
+			t.Errorf("安装包分支不应替换 exe，实际内容：%q", got)
 		}
 	})
+}
+
+// 应用还在运行（exe 被占用）时脚本必须等待，退出后才动手。
+// 这条守的是"用 exe 可写性判断退出"这个机制本身——曾经用 tasklist/find 匹配 PID，
+// PID 被复用后循环永不退出，用户看到的是卡住的窗口和"更新一直没反应"。
+func TestWindowsUpdateScriptWaitsForRunningExe(t *testing.T) {
+	dir := t.TempDir()
+	appDir := filepath.Join(dir, "灵感")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	appPath := filepath.Join(appDir, "灵感.exe")
+	pkgPath := filepath.Join(appDir, "灵感_new_portable.exe")
+
+	// 冒充"正在运行的应用"：ping.exe 的副本，跑约 2 秒
+	copySystemExe(t, "ping.exe", appPath)
+	holder := exec.Command(appPath, "-n", "3", "127.0.0.1")
+	if err := holder.Start(); err != nil {
+		t.Fatalf("无法启动持有进程：%v", err)
+	}
+	defer func() { _ = holder.Process.Kill(); _, _ = holder.Process.Wait() }()
+
+	// 便携版分支的更新包：内容与 appPath 明显不同，便于验证"覆盖发生在等待之后"
+	payload := []byte(strings.Repeat("inspiration-new-version-payload\n", 40))
+	writeTestFile(t, pkgPath, string(payload))
+
+	scriptPath := filepath.Join(dir, "update.cmd")
+	method, script := windowsUpdateScript(pkgPath, appPath)
+	if method != "portable-swap" {
+		t.Fatalf("应走 portable-swap，得到 %q", method)
+	}
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	outFile := filepath.Join(dir, "script-out.txt")
+	out, err := os.Create(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := newUpdateScriptCommand(scriptPath, append(os.Environ(),
+		envUpdatePkg+"="+pkgPath, envUpdateExe+"="+appPath))
+	cmd.Stdout, cmd.Stderr = out, out
+	cmd.WaitDelay = 15 * time.Second
+
+	started := time.Now()
+	runErr := cmd.Run()
+	elapsed := time.Since(started)
+	_ = out.Close()
+	scriptOutput, _ := os.ReadFile(outFile)
+	if errors.Is(runErr, exec.ErrWaitDelay) {
+		runErr = nil
+	}
+	if runErr != nil {
+		t.Fatalf("脚本执行失败：%v\n输出：%s\n脚本：\n%s", runErr, scriptOutput, script)
+	}
+
+	// 持有进程跑约 2 秒：脚本必须等它退出（而不是立刻覆盖）
+	if elapsed < 800*time.Millisecond {
+		t.Errorf("脚本没有等待运行中的应用退出（耗时 %v）", elapsed)
+	}
+	if got := readTestFile(t, appPath); got != string(payload) {
+		t.Errorf("应用没有被覆盖成更新包内容（长度 %d，期望 %d）", len(got), len(payload))
+	}
+	if _, err := os.Stat(scriptPath); !os.IsNotExist(err) {
+		t.Errorf("脚本没有自删（err=%v）", err)
+	}
 }
 
 // scriptFixture 是执行用例的目录布局：工作目录保持纯 ASCII，应用/更新包放在含中文的子目录。
@@ -82,7 +149,7 @@ func newScriptFixture(t *testing.T, kind string) *scriptFixture {
 		marker:  filepath.Join(base, "restarted.txt"),
 	}
 	if kind == "setup" {
-		f.download = filepath.Join(appDir, "inspiration_0.1.2_windows_amd64_setup.exe")
+		f.download = filepath.Join(appDir, "inspiration_0.1.7_windows_amd64_setup.exe")
 	} else {
 		f.download = filepath.Join(appDir, "灵感_portable.exe")
 	}
@@ -98,17 +165,7 @@ func (f *scriptFixture) appContent(marker string) string {
 func runUpdateScriptE2E(t *testing.T, f *scriptFixture, wantMarker string) {
 	t.Helper()
 
-	// 冒充"正在运行、约 2 秒后才退出"的应用
-	holder := exec.Command("cmd", "/c", "ping -n 3 127.0.0.1")
-	if err := holder.Start(); err != nil {
-		t.Fatalf("无法启动持有进程：%v", err)
-	}
-	defer func() { _ = holder.Process.Kill(); _, _ = holder.Process.Wait() }()
-
-	// 等待上限压到 4 轮（≈4 秒）：既能验证"持有进程还活着时会等待"，又保证即使
-	// 这个 PID 之后恰好被复用，脚本也会很快继续——不让测试依赖 PID 复用的运气。
-	const rounds = 4
-	method, script := windowsUpdateScriptLimited(holder.Process.Pid, f.download, f.appPath, rounds)
+	method, script := windowsUpdateScript(f.download, f.appPath)
 	scriptPath := filepath.Join(f.dir, "update.cmd")
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		t.Fatalf("写入脚本失败：%v", err)
@@ -125,27 +182,28 @@ func runUpdateScriptE2E(t *testing.T, f *scriptFixture, wantMarker string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, "cmd", "/c", scriptPath)
-	// 路径走环境变量（脚本内容保持纯 ASCII）：这里应用与更新包都在中文目录下，
-	// 验证中文路径经环境变量传递后仍能被 if exist / copy / start / start /wait 正确处理。
-	command.Env = append(os.Environ(),
-		envUpdatePkg+"="+f.download,
-		envUpdateExe+"="+f.appPath,
-	)
-	command.Stdout = out
-	command.Stderr = out
-	command.WaitDelay = 15 * time.Second // 进程不退出时的兜底：先 Kill 再等一小会儿
+	cmd := newUpdateScriptCommand(scriptPath, append(os.Environ(),
+		envUpdatePkg+"="+f.download, envUpdateExe+"="+f.appPath))
+	cmd.Stdout, cmd.Stderr = out, out
+	cmd.WaitDelay = 15 * time.Second // 进程不退出时的兜底：先 Kill 再等一小会儿
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("启动脚本失败：%v", err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
 
-	started := time.Now()
-	runErr := command.Run()
-	elapsed := time.Since(started)
+	var runErr error
+	select {
+	case runErr = <-done:
+	case <-ctx.Done():
+		_ = cmd.Process.Kill()
+		<-done
+		t.Fatalf("脚本执行超过 90 秒未结束\n脚本：\n%s", script)
+	}
 	_ = out.Close()
 	scriptOutput, _ := os.ReadFile(outFile)
 	if errors.Is(runErr, exec.ErrWaitDelay) {
 		runErr = nil // 进程已退出，只是仍有子进程占着 I/O 句柄
-	}
-	if ctx.Err() != nil {
-		t.Fatalf("脚本执行超过 90 秒未结束（疑似等待循环没有退出）\n脚本：\n%s\n输出：%s", script, scriptOutput)
 	}
 	if runErr != nil {
 		t.Fatalf("脚本执行失败（method=%s）：%v\n输出：%s\n脚本：\n%s", method, runErr, scriptOutput, script)
@@ -175,11 +233,6 @@ func runUpdateScriptE2E(t *testing.T, f *scriptFixture, wantMarker string) {
 	}
 	if got != wantMarker {
 		t.Errorf("重启的应用不是期望的版本：标记为 %q，期望 %q", got, wantMarker)
-	}
-
-	// 必须等到持有进程退出（即至少循环一次）才继续
-	if elapsed < 800*time.Millisecond {
-		t.Errorf("脚本没有等待持有进程退出（耗时 %v）", elapsed)
 	}
 	if _, err := os.Stat(scriptPath); !os.IsNotExist(err) {
 		t.Errorf("脚本没有自删（err=%v）", err)

@@ -9,13 +9,17 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/sheep-ah/inspiration/internal/sysproc"
 )
 
 const (
-	createDetachedProcess = 0x00000008 // DETACHED_PROCESS：不继承父进程控制台，父进程退出后继续运行
-	createNewProcessGroup = 0x00000200 // CREATE_NEW_PROCESS_GROUP
+	// CREATE_NEW_CONSOLE + SW_HIDE（见 newUpdateScriptCommand）：给脚本一个**隐藏的控制台**。
+	//
+	// 不能用 DETACHED_PROCESS/CREATE_NO_WINDOW——那样 cmd 自己没有控制台，它随后启动的每个
+	// 控制台子命令（ping 等）都会被系统新开一个窗口（真实故障：更新时弹出一个标题为
+	// `find "45152"` 的窗口并卡住，用户以为程序死了）。有了隐藏控制台，子命令共用它，
+	// 既不弹窗、管道与延时命令也都能正常工作。
+	createNewConsole      = 0x00000010 // CREATE_NEW_CONSOLE
+	createNewProcessGroup = 0x00000200 // CREATE_NEW_PROCESS_GROUP：脱离父进程的 Ctrl 事件
 )
 
 // applyPlatform（Windows）：
@@ -41,27 +45,19 @@ func applyPlatform(ctx context.Context, opts ApplyOptions) (*ApplyResult, error)
 		opts.WorkDir = os.TempDir()
 	}
 	scriptPath := filepath.Join(opts.WorkDir, fmt.Sprintf("inspiration-update-%d.cmd", time.Now().Unix()))
-	method, script := windowsUpdateScript(os.Getpid(), opts.DownloadedPath, exePath)
+	method, script := windowsUpdateScript(opts.DownloadedPath, exePath)
 
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		return nil, fmt.Errorf("无法创建更新脚本：%w", err)
 	}
 	opts.Progress("正在准备重启并完成更新…")
 
-	// 直接执行脚本（不再用 `start /min`）：脚本内改用 ping 做延时，不需要控制台，
-	// 因此窗口可以完全隐藏，全程不会出现命令行窗口。
-	//
 	// 路径通过环境变量传入（脚本本身保持纯 ASCII）：cmd.exe 按控制台代码页解码脚本
 	// 字节，中文安装路径（「灵感」）写进 .cmd 会变成乱码，导致覆盖/重启指向不存在的路径。
-	cmd := exec.Command("cmd", "/c", scriptPath)
-	cmd.Env = append(os.Environ(),
+	cmd := newUpdateScriptCommand(scriptPath, append(os.Environ(),
 		envUpdatePkg+"="+opts.DownloadedPath,
 		envUpdateExe+"="+exePath,
-	)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: createDetachedProcess | createNewProcessGroup,
-	}
-	sysproc.HideWindow(cmd)
+	))
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("无法启动更新脚本：%w", err)
 	}
@@ -72,4 +68,17 @@ func applyPlatform(ctx context.Context, opts ApplyOptions) (*ApplyResult, error)
 		NeedsRestart: true,
 		Message:      "更新包已下载并校验通过。应用将退出并在后台完成安装，随后自动重新启动。",
 	}, nil
+}
+
+// newUpdateScriptCommand 组装"以隐藏控制台运行更新脚本"的命令。
+// 生产与 Windows 实测用例共用它，保证测试跑在与生产完全相同的启动方式下
+// （否则会漏掉"控制台子命令各自开窗/管道行为不同"这类只在生产环境暴露的问题）。
+func newUpdateScriptCommand(scriptPath string, env []string) *exec.Cmd {
+	cmd := exec.Command("cmd", "/c", scriptPath)
+	cmd.Env = env
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: createNewConsole | createNewProcessGroup,
+		HideWindow:    true, // STARTF_USESHOWWINDOW + SW_HIDE：新建的控制台窗口隐藏
+	}
+	return cmd
 }

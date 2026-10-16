@@ -26,6 +26,7 @@ internal/
   contract/              字段定义与校验、生成编排、输出路径决策
   converter/             .doc/.docx 转换：Word COM/AppleScript → WPS COM → LibreOffice + 产物强校验
   updater/               应用内更新：检查、下载、校验、按平台安装
+  sysproc/               子进程平台差异：Windows 上抑制控制台窗口（HideWindow + CREATE_NO_WINDOW）
   version/               版本信息（ldflags 注入）
   e2e/                   端到端测试（真实语料 + 真实数据库 + 重启/异常场景）
 frontend/
@@ -129,6 +130,7 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 | 存储单测 | `internal/store` | 含"中文长文件名在 Linux 上可创建"等平台边界用例 |
 | 端到端 | `internal/e2e` | 真实语料 + 真实数据库 + 重启、异常退出、只读目录、损坏数据库、超长文件名 |
 | 更新器 | `internal/updater` | 全部离线（`httptest` 假 GitHub）；含安装失败不破坏当前版本、备份/回滚 |
+| 平台差异 | `internal/sysproc`（仅 Windows 编译） | 断言 `HideWindow` 置上 `SW_HIDE` + `CREATE_NO_WINDOW`、不覆盖已有 CreationFlags，且子进程仍能执行并回传输出；由 CI 的 windows job 真实执行 |
 | 性能 | `internal/docx/perf_test.go` | 2000 段 + 200 行表格；`//go:build race` 下只记录不判定（竞态插桩会放大耗时） |
 
 **跨平台陷阱（CI 抓到的真实问题，务必注意）**：
@@ -141,6 +143,7 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 6. **GitHub Actions 步骤退出码**取最后一条命令的结果：不要以可能失败的命令结尾（如 `where.exe` 找不到就返回 1）
 7. **macOS dmg 必须带安装别名**：`hdiutil create -srcfolder App.app` 打出的 dmg 根目录只有一个 `.app`，没有指向 `/Applications` 的符号链接，用户双击只是"从只读卷运行"，看起来像"打开了但没安装"。统一用 `scripts/make-dmg.sh`（暂存目录放 `.app` + `Applications` 别名，打完挂载自检，缺别名就失败且不产出 dmg）
 8. **shell 里 `$VAR` 紧邻中文字符**：`"$OUT_DMG（"` 会被解析成变量名 `OUT_DMG（`，`set -u` 下报 unbound variable。中文相邻的变量一律写 `${VAR}`
+9. **Windows 上子进程会弹控制台窗口**：应用是 GUI 子系统（自身无控制台），启动控制台程序（`cmd`/`powershell`/`reg`）时 Windows 会**为它新建一个控制台窗口**。用户看到的就是"上传模板/生成合同时弹出命令行执行脚本"。所有 `exec.Command*` 之后必须调用 `sysproc.HideWindow(cmd)`（`internal/sysproc`，非 Windows 平台为空操作），它会置 `HideWindow`（SW_HIDE）并加 `CREATE_NO_WINDOW`。唯一例外是更新流程的批处理（自身需要 `timeout /t`，故保留最小化窗口）
 
 ## 6. CI/CD
 

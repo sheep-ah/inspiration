@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/sheep-ah/inspiration/internal/sysproc"
 )
 
 // ShowStartupError 在图形界面里弹出启动失败提示。
@@ -17,7 +19,10 @@ func ShowStartupError(title, message string) {
 	case "windows":
 		ps := fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(%q, %q, 'OK', 'Error') | Out-Null`,
 			message, title)
-		_ = exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps).Run()
+		cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+		// 不抑制的话，弹提示框之前会先闪一个 PowerShell 控制台窗口
+		sysproc.HideWindow(cmd)
+		_ = cmd.Run()
 	}
 }
 

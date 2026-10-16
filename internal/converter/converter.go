@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/sheep-ah/inspiration/internal/docx"
+	"github.com/sheep-ah/inspiration/internal/sysproc"
 )
 
 // EnvSoffice 可用于指定 LibreOffice 可执行文件路径（测试或非标准安装）。
@@ -296,7 +297,9 @@ func libreOfficePaths() []string {
 
 // regProgIDExists 检查 Windows 注册表中是否存在某个 COM ProgID。
 func regProgIDExists(progID string) bool {
-	out, err := exec.Command("reg", "query", `HKCR\`+progID, "/ve").CombinedOutput()
+	cmd := exec.Command("reg", "query", `HKCR\`+progID, "/ve")
+	sysproc.HideWindow(cmd)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false
 	}
@@ -591,6 +594,9 @@ func (c *Converter) selfCheck(ctx context.Context, srcDocx, dstDoc string) error
 
 func runCommand(ctx context.Context, bin string, args ...string) error {
 	cmd := exec.CommandContext(ctx, bin, args...)
+	// Windows 上是 GUI 程序：不抑制的话，PowerShell / LibreOffice 会各弹一个
+	// 控制台窗口（用户看到的就是"黑框执行脚本一闪"）。
+	sysproc.HideWindow(cmd)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out

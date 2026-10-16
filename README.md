@@ -21,6 +21,7 @@
 | 阶段 5 应用内更新 | ✅ 已完成：`v0.1.0` 已正式发布，macOS 侧用真实发布包端到端验证通过（检查 → 下载 → 校验 → 安装 → 重启 → 数据保留），见 [`docs/phase5/`](docs/phase5/README.md)；Windows 更新路径待真机验证 |
 | 阶段 6 最终验收与交付 | ✅ 已完成：验收报告 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)、用户说明 [`docs/user-guide.md`](docs/user-guide.md)、开发文档 [`docs/development.md`](docs/development.md)；未验证项已逐条标注 |
 | 交付后修复：macOS dmg 缺安装别名 | ✅ 已修复（`scripts/make-dmg.sh` + 打包时挂载自检），见 [`docs/phase4/README.md`](docs/phase4/README.md) §3.4；已发布的 `v0.1.0` dmg 未回填，下一个版本生效 |
+| 交付后修复：Windows 子进程弹命令行窗口 | ✅ 已修复（`internal/sysproc` 抑制控制台窗口，覆盖转换探测、`.doc` 转换、提示框、打开文件全部启动点），见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.2；Windows 上的视觉效果待用户复验 |
 
 ## 阶段 1 选型结论（已冻结）
 

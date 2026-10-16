@@ -190,4 +190,17 @@
 | 验证证据 | `make dmg` → 挂载 `/tmp/mnt-make`：卷内为 `Applications`（`readlink` = `/Applications`）与 `灵感.app`；从卷内复制到本地目录后 `--version` = `v0.1.0`、`--selfcheck` exit 0；负例（不存在的应用包、缺 Info.plist）均 exit 1 且不产出 dmg |
 | 未回填 | 已发布的 `v0.1.0` 资产保持原样；修复从下一个版本生效。详见 [`../phase4/README.md`](../phase4/README.md) §3.4 |
 
+### 9.2 Windows 上传模板/生成合同时弹出控制台窗口（2026-10-16，用户反馈）
+
+用户在 Windows 上反馈：**每次上传模板和生成合同时都会弹出一个命令行窗口执行脚本，执行完自动关闭**，"不懂技术的人看着会很吓人"。
+
+| 项 | 内容 |
+|---|---|
+| 现象 | 上传模板、生成合同时出现"黑框一闪"或整个转换期间挂着命令行窗口 |
+| 根因 | 应用是 GUI 子系统（自身无控制台）。Windows 启动控制台程序时若不在 `STARTUPINFO` 里指定隐藏窗口，系统会**为子进程新建控制台窗口**。代码里所有 `exec.Command` 都未做抑制：`converter` 的 `reg query`（通道探测，每次上传/生成都会跑，最多 4 次：Word.Application + KWPS + WPS + 复核）、`powershell -File convert.ps1`（`.doc` 转换与自检回读）、`app` 的 `powershell`（错误提示框）、`cmd /c start`（打开文件/文件夹） |
+| 修复 | 新增 `internal/sysproc`（Windows 实现置 `HideWindow=true` 与 `CREATE_NO_WINDOW`，保留已有 `CreationFlags`；非 Windows 为空操作），并在上述全部启动点调用：`converter.regProgIDExists`、`converter.runCommand`、`app.openPath`、`app.revealPath`、`app.ShowStartupError` |
+| 保留的例外 | 更新流程的批处理仍用最小化窗口：脚本内 `timeout /t 1` 依赖控制台，去掉控制台会让等待循环忙转（见 `internal/updater/install_windows.go` 注释） |
+| 验证 | ✅ 本机：`GOOS=windows` 编译 + `go vet` + `staticcheck`（Linux/Windows 视角）全过；`make ci` 全绿。✅ CI：新增 windows job 步骤真实执行 `go test ./internal/sysproc/ -count=1 -v`（断言两个标志位已设置、不覆盖已有 CreationFlags、子进程仍能执行并回传输出） |
+| 未验证 | 在真实 Windows 桌面上"看不到黑框"这一**视觉效果**：需要用户在有 Word/WPS 的 Windows 上上传一次 `.doc` 模板并生成一份 `.doc` 合同确认 |
+
 本节与 §7 的关系：§7 是"当前环境无法验证"的清单，本节是"已发布产物上发现的缺陷及其修复"，两者独立。

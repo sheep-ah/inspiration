@@ -1,6 +1,9 @@
 # 灵感（Inspiration）
 
-本地运行的合同生成桌面应用：导入 DOCX 模板，填写十个基础字段，一键生成合同。合同内容与模板文件默认只在本机处理，不上传。
+本地运行的合同生成桌面应用：导入 DOCX 模板，填写 11 个基础字段，一键生成合同。合同内容与模板文件默认只在本机处理，不上传。
+
+- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.0**）
+- 使用说明：[`docs/user-guide.md`](docs/user-guide.md) ｜ 开发文档：[`docs/development.md`](docs/development.md) ｜ 验收报告：[`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)
 
 - 应用形态：桌面应用（Windows x64 / macOS Intel / macOS Apple Silicon）
 - 技术栈：Go + Wails v2（前端 TypeScript + Vite）+ SQLite（纯 Go 驱动）
@@ -15,8 +18,8 @@
 | 需求扩展：`.doc` 模板与 `.doc` 输出 | ✅ 评估 + 导出侧实现完成，见 [`docs/doc-support-evaluation.md`](docs/doc-support-evaluation.md)（用户侧 Word/WPS 核对待确认） |
 | 阶段 3 完善与稳定性测试（异常路径、性能、图标、静态检查） | ✅ 已完成，见 [`docs/phase3/`](docs/phase3/README.md)；中文输入法实操与真机项待人工确认 |
 | 阶段 4 跨平台 CI/CD（main 自动测试+三平台构建、标签发布） | ✅ 已完成并**在真实 CI 上跑通**（六 job 全绿，三平台产物均真实运行验证），见 [`docs/phase4/`](docs/phase4/README.md) |
-| 阶段 5 应用内更新 | 🔄 首个版本已完成（检查/下载/校验/按平台安装 + 界面 + 20 个用例），见 [`docs/phase5/`](docs/phase5/README.md)；正式发布与端到端更新待验证 |
-| 阶段 6 最终验收与交付 | 未开始 |
+| 阶段 5 应用内更新 | ✅ 已完成：`v0.1.0` 已正式发布，macOS 侧用真实发布包端到端验证通过（检查 → 下载 → 校验 → 安装 → 重启 → 数据保留），见 [`docs/phase5/`](docs/phase5/README.md)；Windows 更新路径待真机验证 |
+| 阶段 6 最终验收与交付 | ✅ 已完成：验收报告 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)、用户说明 [`docs/user-guide.md`](docs/user-guide.md)、开发文档 [`docs/development.md`](docs/development.md)；未验证项已逐条标注 |
 
 ## 阶段 1 选型结论（已冻结）
 
@@ -35,6 +38,12 @@
 - [`docs/phase1/build-release-update.md`](docs/phase1/build-release-update.md) — 构建分发、CI/CD、更新方案
 - [`docs/phase1/architecture.md`](docs/phase1/architecture.md) — 目录设计、数据存储、安全约定
 - [`docs/phase1/risks-and-unverified.md`](docs/phase1/risks-and-unverified.md) — 风险、未验证项、待决策事项
+
+## 用户与开发文档
+
+- [`docs/user-guide.md`](docs/user-guide.md) — **使用说明**：安装（含未签名放行）、三步上手、占位符写法与 11 个字段表、模板校验提示含义、`.doc` 输出差异、数据位置与备份、应用内更新、常见问题、已知限制
+- [`docs/development.md`](docs/development.md) — **开发文档**：技术栈与选型依据、架构与目录、核心模块（引擎/存储/转换器/更新器）、本地开发命令、测试策略与 6 类跨平台陷阱、CI/CD 与发布流程、扩展指南、编码约定
+- [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) — **最终验收报告**：§6.1–§6.4 逐条对照任务书要求与证据，含"未验证项"清单
 
 ## 独立需求评估
 

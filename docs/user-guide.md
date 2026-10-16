@@ -171,6 +171,7 @@
 | 生成 `.doc` 失败并提示需要转换器 | 本机没有 Word/WPS/LibreOffice；安装任意一个即可，或改用 DOCX |
 | 账户号前导零丢失 | 不会发生（全程按文本处理）；若模板里用了数值型域，请改为文本 |
 | 打开应用"没反应" | 应用会在启动失败时弹窗说明原因（如数据文件损坏）；也可查看 `logs/` 下的日志 |
+| 使用中弹出「WebView2 加载失败」（标题是「提示」，只有一个「确定」按钮） | 本应用自己的弹窗标题一律是「灵感…」，这个框来自 Windows 的 **Microsoft Edge WebView2 运行时**（界面所依赖的系统组件），不是生成流程报错——点「确定」后应用可继续使用，已生成的合同文件正常。若反复出现：到「设置 → 应用」修复/重装 `Microsoft Edge WebView2 Runtime`，或用微软官方 [Evergreen Bootstrapper](https://developer.microsoft.com/microsoft-edge/webview2/) 重新安装运行时 |
 | 应用内检查更新失败 | 检查网络（需要访问 github.com）；也可直接到发布页手动下载 |
 | 更新后想回退 | macOS：数据目录同级的 `灵感.app.backup-<时间戳>` 就是旧版本，替换回去即可（备份保留 7 天） |
 

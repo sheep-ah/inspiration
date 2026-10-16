@@ -14,18 +14,20 @@
 | 用户使用说明 | [`../user-guide.md`](../user-guide.md) | ✅ |
 | 开发文档 | [`../development.md`](../development.md) | ✅ |
 | 最终验收报告 | [`acceptance-report.md`](acceptance-report.md) | ✅ 逐条对照任务书 §6.1–§6.4，未验证项集中在 §7 |
-| 未验证项清单 | [`acceptance-report.md`](acceptance-report.md) §7（9 项） | ✅ 每项注明原因与建议验证方式 |
+| 未验证项清单 | [`acceptance-report.md`](acceptance-report.md) §7（8 项；第 2 项「Windows 安装与更新」已于 2026-10-16 由用户真机补验） | ✅ 每项注明原因与建议验证方式 |
 
 ## 阶段 6 结论
 
-- **技术方案 / 核心功能 / 三平台构建与发布 / 应用内更新（macOS）** 均已实现并通过可复现验证；
-- **Microsoft Word 打开结果、Windows 安装与更新、macOS Intel 真机、GUI 点击式更新、代码签名与公证、
+- **技术方案 / 核心功能 / 三平台构建与发布 / 应用内更新（macOS 与 Windows）** 均已实现并通过可复现验证；
+- **Windows 安装与更新** 已由用户在自己的 Windows 机器上补验通过：`v0.1.11` 安装包 → 应用内发现 `v0.1.12` → 下载、静默安装、自动重启 → 正常启动并成功生成合同（见验收报告 §8 补验记录、`docs/phase5/README.md` §2.1）；
+- **Microsoft Word 打开结果、macOS Intel 真机、GUI 点击式更新（macOS 侧）、代码签名与公证、
   Word/WPS 转换通道、磁盘写满场景、中文输入法实操、超大模板性能** 未在当前环境验证，
   已在验收报告 §7 逐条标注，**不视为通过**。
+- 用户 Windows 真机上同时观察到一次系统弹窗「WebView2 加载失败」：非本应用文案（仓库与 Wails 源码中均无此串），属本机 WebView2 运行时，未影响生成结果；已记入用户说明 §7 与验收报告 §8。
 
 ## 后续（可选）
 
-1. 在 Windows 上安装 `inspiration_0.1.1_windows_amd64_setup.exe` 并生成一份合同（顺便确认 §9.2 黑框修复的实际观感），回填验收报告 §6.2 与 §7 第 2 项；
+1. ~~在 Windows 上安装并生成一份合同（顺便确认 §9.2 黑框修复的实际观感）~~ ✅ 已完成：用户于 2026-10-16 在 Windows 真机安装 `v0.1.11` 并应用内更新到 `v0.1.12`、成功生成合同（见 `docs/phase5/README.md` §2.1）；
 2. 用 Microsoft Word 打开一份生成结果，回填 §3 第 12 项与 §7 第 1 项；
-3. 在 `v0.1.0` 应用的界面里点一次「检查更新 → 下载并更新」升到 `v0.1.1`（两次发布的条件已具备，程序侧检查已验证会选中正确的 arm64 zip，见 §9.3），回填 §7 第 4 项；
+3. GUI 点击式更新：Windows 侧已由用户真机走通（`v0.1.11` → `v0.1.12`，见 `docs/phase5/README.md` §2.1）；macOS 侧仍待发布下一版本后在界面上点一次「检查更新 → 下载并更新」，回填 §7 第 4 项；
 4. 若要启用签名：购买 Apple Developer 证书与 Windows 代码签名证书后，在 CI 增加签名/公证步骤，并更新用户说明 §1。

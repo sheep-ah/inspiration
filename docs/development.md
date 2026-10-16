@@ -156,6 +156,11 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 10. **Windows 批处理脚本必须用 CRLF，且不要内嵌中文路径**：`cmd.exe` 执行 `goto` 时按**字节偏移**重新定位脚本文件，LF-only 会让偏移算错、`goto` 之后从行中间继续执行——现场表现为 `'el'`/`'tart'`/`'/nobreak'` 这类"碎片命令"、更新静默失败。另外 `cmd.exe` 按**控制台代码页**解码脚本字节，脚本里写 UTF-8 的中文路径（安装目录/数据目录都含「灵感」）会被解成乱码，`if exist`/`copy`/`start` 指向不存在的路径（表现为"装完不重启/根本没覆盖"）。因此：生成 `.cmd` 一律走 `updater.windowsUpdateScript()`（CRLF + **纯 ASCII**，路径经 `%INSPIRATION_UPDATE_PKG%`/`%INSPIRATION_UPDATE_EXE%` 环境变量传入，环境变量是 UTF-16、不受编码影响），单测锁定"无裸 LF"与"无非 ASCII 字节"。同理：无控制台场景不要用 `timeout.exe`（需要控制台输入句柄），改用 `ping -n N 127.0.0.1 >nul` 延时；自删用 `(goto) 2>nul & del "%~f0"`。Windows 侧还有真实执行脚本的用例（CI 的 windows job 跑），详见 `docs/phase6/acceptance-report.md` §9.4
 11. **不要给大文件的下载设 `http.Client.Timeout`**：Go 的这个 Timeout 包含"读完响应体"，而更新包有 6~18 MB——60 秒上限等于要求 ≥166 KB/s，稍慢的用户必然报"下载超时"（真实故障，见 §3.4 与 `docs/phase6/acceptance-report.md` §9.9）。正确姿势：整体时长交给 context，建连/首字节单独设限，另加"连续 N 秒没有数据"的停滞检测。附带一个坑：可取消的 ctx 必须在构造 `http.Request` **之前**派生，否则 `cancel()` 影响不到正在读的响应体
 
+12. **Windows 更新脚本（`updater.windowsUpdateScript`）另外三条硬约束**，都来自真实故障：
+    - **等待"应用退出"必须按 PID + 映像名双重过滤**（`IMAGENAME` 经环境变量传入）。只用 PID 会被系统复用干扰：PID 被复用后 `tasklist` 永远匹配得到，循环永不退出——现场是卡住的 `find "45152"` 窗口和"更新一直没反应"。另加轮数上限兜底。
+    - **不要用"重定向失败"判断文件可写**：`>>"file" echo.` 在目标被占用时确实写不进去，但**重定向失败不会把 errorlevel 置 1**，脚本会当成"已退出"直接往下走（CI 实测 56ms 就去覆盖，紧接着 copy 失败）。
+    - **脚本要以"隐藏控制台"启动**（`CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP` + `HideWindow`，见 `newUpdateScriptCommand`）。不能用 `DETACHED_PROCESS`/`CREATE_NO_WINDOW`：那样 cmd 自己没有控制台，它启动的每个控制台子命令（tasklist/find/ping）都会被系统**新开一个窗口**。
+    还有一条方法论：**Windows 平台用例必须用与生产相同的启动方式**（共用 `newUpdateScriptCommand`）。早先用默认参数从"自带控制台的测试进程"启动脚本，测试进程有控制台，子命令不会开窗、行为也不同，于是这类问题连过六版都没被发现。
 ## 6. CI/CD
 
 | 工作流 | 触发 | 内容 |

@@ -2,7 +2,7 @@
 
 本地运行的合同生成桌面应用：导入 DOCX 模板，填写 11 个基础字段，一键生成合同。合同内容与模板文件默认只在本机处理，不上传。
 
-- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.0**）
+- 下载安装：[GitHub Releases](https://github.com/sheep-ah/inspiration/releases)（当前版本 **v0.1.1**）
 - 使用说明：[`docs/user-guide.md`](docs/user-guide.md) ｜ 开发文档：[`docs/development.md`](docs/development.md) ｜ 验收报告：[`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)
 
 - 应用形态：桌面应用（Windows x64 / macOS Intel / macOS Apple Silicon）
@@ -20,8 +20,8 @@
 | 阶段 4 跨平台 CI/CD（main 自动测试+三平台构建、标签发布） | ✅ 已完成并**在真实 CI 上跑通**（六 job 全绿，三平台产物均真实运行验证），见 [`docs/phase4/`](docs/phase4/README.md) |
 | 阶段 5 应用内更新 | ✅ 已完成：`v0.1.0` 已正式发布，macOS 侧用真实发布包端到端验证通过（检查 → 下载 → 校验 → 安装 → 重启 → 数据保留），见 [`docs/phase5/`](docs/phase5/README.md)；Windows 更新路径待真机验证 |
 | 阶段 6 最终验收与交付 | ✅ 已完成：验收报告 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)、用户说明 [`docs/user-guide.md`](docs/user-guide.md)、开发文档 [`docs/development.md`](docs/development.md)；未验证项已逐条标注 |
-| 交付后修复：macOS dmg 缺安装别名 | ✅ 已修复（`scripts/make-dmg.sh` + 打包时挂载自检），见 [`docs/phase4/README.md`](docs/phase4/README.md) §3.4；已发布的 `v0.1.0` dmg 未回填，下一个版本生效 |
-| 交付后修复：Windows 子进程弹命令行窗口 | ✅ 已修复（`internal/sysproc` 抑制控制台窗口，覆盖转换探测、`.doc` 转换、提示框、打开文件全部启动点），见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.2；Windows 上的视觉效果待用户复验 |
+| 交付后修复：macOS dmg 缺安装别名 | ✅ 已修复并随 **v0.1.1** 发布（`scripts/make-dmg.sh` + 打包时挂载自检）：已下载发布包实测——卷内含 `灵感.app` 与 `Applications → /Applications` 别名，sha256 与 `checksums.txt` 一致。见 [`docs/phase4/README.md`](docs/phase4/README.md) §3.4 |
+| 交付后修复：Windows 子进程弹命令行窗口 | ✅ 已修复并随 **v0.1.1** 发布（`internal/sysproc` 抑制控制台窗口，覆盖转换探测、`.doc` 转换、提示框、打开文件全部启动点）；CI 的 windows runner 真实执行了专项测试，见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.2；Windows 上的视觉效果待用户复验 |
 
 ## 阶段 1 选型结论（已冻结）
 

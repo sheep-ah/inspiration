@@ -117,7 +117,7 @@
 
 ### 5.3 版本管理
 
-语义化版本：`MAJOR` 不兼容变更 / `MINOR` 向后兼容新功能 / `PATCH` 修复。当前 `v0.1.0`。
+语义化版本：`MAJOR` 不兼容变更 / `MINOR` 向后兼容新功能 / `PATCH` 修复。当前 `v0.1.1`（`v0.1.0` → `v0.1.1` 为两个交付后修复的补丁版本，见 §9）。
 版本号三处一致：应用内可见（关于页 + `--version`）、GitHub Release 标签、产物文件名。
 
 ## 6. 更新验收（任务书 §6.4）
@@ -203,4 +203,21 @@
 | 验证 | ✅ 本机：`GOOS=windows` 编译 + `go vet` + `staticcheck`（Linux/Windows 视角）全过；`make ci` 全绿。✅ CI：新增 windows job 步骤真实执行 `go test ./internal/sysproc/ -count=1 -v`（断言两个标志位已设置、不覆盖已有 CreationFlags、子进程仍能执行并回传输出） |
 | 未验证 | 在真实 Windows 桌面上"看不到黑框"这一**视觉效果**：需要用户在有 Word/WPS 的 Windows 上上传一次 `.doc` 模板并生成一份 `.doc` 合同确认 |
 
-本节与 §7 的关系：§7 是"当前环境无法验证"的清单，本节是"已发布产物上发现的缺陷及其修复"，两者独立。
+### 9.3 v0.1.1 发布记录（2026-10-16）
+
+`v0.1.1` 是把 §9.1（dmg 安装别名）与 §9.2（Windows 控制台窗口）两项修复交付给用户的补丁版本。
+
+| 项 | 内容 |
+|---|---|
+| 版本提交 | `d166259`（`chore(release): 0.1.1`，`wails.json` → `0.1.1`），标签 `v0.1.1` |
+| 发布流水线 | Release run #2（<https://github.com/sheep-ah/inspiration/actions/runs/38883614208>）：`validate` / `测试门禁` / `构建 darwin-arm64` / `构建 windows-amd64` / `构建 darwin-amd64` / `发布到 GitHub Releases` **全部成功** |
+| 发布结果 | 正式（`draft=false`、`prerelease=false`），8 个资产：6 个安装包 + `checksums.txt` + `latest.json` |
+| 校验和一致性 | 6 个资产的 GitHub asset digest 与 `checksums.txt` 逐项**完全一致** |
+| 发布包实测（arm64 dmg） | 下载后 sha256 = `57804850…` 与 `checksums.txt` 一致；挂载后卷内为 `灵感.app` + `Applications → /Applications`（**§9.1 修复已进入发布包**）；从只读卷运行 `--version` = `v0.1.1`；`codesign --verify --deep --strict` 通过 |
+| 发布包实测（arm64 zip，更新器使用的资产） | sha256 = `c0bf13c9…` 与 `checksums.txt` 一致；解压后应用 `--version` = `v0.1.1`、`--selfcheck` 退出码 0 |
+| 更新检查（真实 API） | 用与 app 层相同的代码路径：`Check(v0.1.0)` → `发现新版本 v0.1.1`，选中 `inspiration_0.1.1_darwin_arm64.zip`（5,759,340 字节），资产 sha256 与发布 digest 一致；`latest.json` 的 6 项资产（os/arch/kind/size/sha256）与发布内容一致 |
+| 仍未由本机完成 | GUI 界面上点一次「检查更新 → 下载并更新」（§7 第 4 项）：现在 `v0.1.0` → `v0.1.1` 已具备两次发布的条件，可由用户点击完成；Windows 安装/更新与黑框视觉确认（§7 第 2 项与 §9.2）仍需 Windows 真机 |
+
+> 网络注记：本机访问 `github.com` 的下载地址（`/releases/download/...`）出现间歇性 `i/o timeout`，`api.github.com` 始终正常；同一时刻用 curl 重试可成功，说明是网络路径抖动而非发布产物问题。应用内下载使用同一地址，遇到类似抖动时界面会提示重试且不影响当前版本。
+
+本节与 §7 的关系：§7 是"当前环境无法验证"的清单，本节是"已发布产物上发现的缺陷及其修复"与"发布记录"，两者独立。

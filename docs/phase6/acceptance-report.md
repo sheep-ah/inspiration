@@ -287,6 +287,19 @@
 | 结构调整 | 命令构造抽成纯函数 `openCommandFor`/`revealCommandFor`（`internal/app/open.go`），Windows 的引号与"是否隐藏"两条约束因此可以在**任意平台单测**，不必等真机 |
 | 回归防护 | `internal/app/open_test.go`：Windows 定位文件必须 `explorer /select,"<path>"` 且 `hideConsole=false`；含空格路径必须带引号；Windows 打开文件必须 `cmd /c start "" <path>` 且 `hideConsole=true`；darwin/linux 的命令逐项断言 |
 | 仍未验证 | Windows 真机上的视觉效果（点「打开所在文件夹」应弹出资源管理器并选中该文件）——`explorer` 无法在本机或 CI 无交互会话中验证 |
-| 版本 | 修复随 **v0.1.4** 发布并已实测发布产物 |
+| 版本 | 修复随 **v0.1.4** 发布并已实测发布产物（发布记录见 §9.8） |
+
+### 9.8 v0.1.4 发布记录（2026-10-16）
+
+`v0.1.4` 交付 §9.7（Windows「打开所在文件夹」无反应），也是当前应用内更新的目标版本（取代 `v0.1.3`，后者只是版本递增的验证版）。
+
+| 项 | 内容 |
+|---|---|
+| 版本提交 | `427bb34`（`chore(release): 0.1.4`，`wails.json` → `0.1.4`），标签 `v0.1.4` |
+| 发布流水线 | Release run #5（<https://github.com/sheep-ah/inspiration/actions/runs/38897336977>）：`validate` / `测试门禁` / 三平台构建 / `publish` **全部成功**，正式发布 8 个资产 |
+| 校验和一致性 | arm64 的 dmg/zip 本地 sha256 与 `checksums.txt` 一致（`f5679133…` / `4444b421…`） |
+| 发布包实测 | dmg 挂载含 `Applications → /Applications`，应用 `--version` = `v0.1.4`、`codesign --verify --deep --strict` 通过；zip 解压后 `--version` = `v0.1.4`、`--selfcheck` 退出码 0；`latest.json` 六项资产正确（Windows 安装包 sha256 `97da381a…`） |
+| 回归防护 | `internal/app/open_test.go` 覆盖 windows/darwin/linux 三条路径的命令构造（含"explorer 不得隐藏窗口"与"`/select` 路径必须带引号"） |
+| 待用户复验 | Windows 上点「打开所在文件夹」应弹出资源管理器并选中该文件；「打开文件」按钮也应正常（若两者之一仍无反应，按 §9.7 的表抓证据） |
 
 本章（§9）与 §7 的关系：§7 是"当前环境无法验证"的清单，§9 是"已发布产物上发现的缺陷及其修复"与"发布记录"，两者独立。

@@ -358,4 +358,37 @@ TestWindowsUpdateScriptWaitsForRunningExe
 
   即：运行中的 exe 确实拒绝追加，但**重定向失败不会把 errorlevel 置 1**，脚本把它当成"应用已退出"，56ms 就去覆盖，紧接着的 copy 因文件被占用而失败——后果与用户现场一致。
 
+### 9.12 v0.1.8：等待机制最终修法（2026-10-16）
+
+| 项 | 内容 |
+|---|---|
+| 版本 / 标签 | `0209245`（`chore(release): 0.1.8`），标签 `v0.1.8`；修复提交 `27af7d5` |
+| 修复 | ① 等待"应用退出"恢复 `tasklist`，但**同时按 PID 与映像名过滤**（`IMAGENAME` 经环境变量传入，脚本保持纯 ASCII）：误匹配需要"同一个程序 + 同一个 PID"（即用户自己又打开了应用），概率极低；② 等待上限 300 → **30 轮（≈30 秒）**；③ 保留 v0.1.7 的**隐藏控制台**启动（`CREATE_NEW_CONSOLE \| CREATE_NEW_PROCESS_GROUP` + `HideWindow`），子命令共用该控制台、不再各自开窗；④ 去掉被证伪的"探测 exe 可写"写法，脚本也不再改动应用 exe |
+| CI | CI#40 全绿——Windows job 里 `TestWindowsUpdateScriptWaitsForRunningExe`（用 ping.exe 副本冒充运行中的应用，断言脚本等它退出后才覆盖）与两条分支用例全部通过 |
+| 发布 | Release run #9 成功，正式发布 10 个资产（8 上传 + 2 源码包）；`/releases/latest` 当时指向 v0.1.8 |
+
+### 9.13 v0.1.9 / v0.1.10 与"latest 指向错版本"（2026-10-16）
+
+为了给"从修好的版本更新到下一版"提供目标，我先发 `v0.1.9`（纯版本递增），随后又发 `v0.1.10`——原因是一个发布流程坑：
+
+| 现象 | v0.1.9 与 v0.1.8 的标签几乎同时推送，两条发布流水线**并发**执行；GitHub 的 "latest" 按**发布先后**判定，而 v0.1.8 的转正时刻（13:38:26）比 v0.1.9（13:38:23）**晚 3 秒**，于是 `/releases/latest` 指向 v0.1.8——在 v0.1.8 上检查更新会显示"已是最新"，用户收不到 v0.1.9 |
+| 影响 | 只影响"更新目标"的选择（应用内更新读 `/releases/latest`），不影响任何发布产物本身 |
+| 处置 | 串行发布 `v0.1.10`（代码与 v0.1.8 一致，仅版本号），发布完成后实测 `/releases/latest` → **v0.1.10**；`IsNewer("v0.1.9","v0.1.10")=true` 已单测确认 |
+| 教训（已写入开发文档） | **不要并发推送多个版本标签**：要发两版就串行推、等前一版发布完成再推下一个，否则 latest 可能指向较旧的版本 |
+| 产物实测 | 见 §9.14 |
+
+### 9.14 产物实测（v0.1.9 / v0.1.10，2026-10-16）
+
+| 对象 | 检查 | 结果 |
+|---|---|---|
+| `/releases/latest` | 解析到哪个标签 | **v0.1.10** ✅（v0.1.9 一度被 v0.1.8 抢占，见 §9.13） |
+| v0.1.10 `darwin_arm64.dmg` | 本地 sha256 vs `checksums.txt` | 一致 ✅ |
+| v0.1.10 `windows_amd64_setup.exe` | 本地 sha256 vs `checksums.txt` | 一致 ✅（`59bff07c…`，体积 9,974,227，与 `latest.json` 记录相符） |
+| v0.1.10 dmg 挂载 | 卷内容 / 版本 / 签名 | 含 `灵感.app` + `Applications → /Applications`；`--version` = **v0.1.10**；`codesign --verify --deep --strict` 通过 ✅ |
+| v0.1.10 `latest.json` | 资产清单 | 6 项（darwin amd64/arm64 的 dmg+zip、windows amd64 的 installer+portable），sha256 与实测相符 ✅ |
+| **v0.1.9 `windows_amd64_setup.exe`** | 本地 sha256 vs 其 `checksums.txt` | **一致 ✅**（这是用户手动安装用的包） |
+| v0.1.8 `windows_amd64_setup.exe` | 存在性与体积 | 9,974,209 字节 ✅（其 `checksums.txt` 在本机网络下多次下载失败，未做 sha 比对，已如实标注） |
+
+说明：本机到 `github.com` 的下载地址间歇性超时（本次 v0.1.10 的 `checksums.txt` 首次下载返回 9 字节的 "Not Found"，重试后才成功），因此以上校验均以"成功下载到的文件"为准，失败项不视为通过。
+
 本章（§9）与 §7 的关系：§7 是"当前环境无法验证"的清单，§9 是"已发布产物上发现的缺陷及其修复"与"发布记录"，两者独立。

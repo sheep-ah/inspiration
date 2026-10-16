@@ -170,6 +170,8 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 
 **发布流程**：
 
+> ⚠️ **不要并发推送多个版本标签**：GitHub 的 `/releases/latest` 按"发布先后"判定，两条发布流水线并发时可能让 latest 指向**较旧**的版本（应用内更新读的正是 latest，用户就收不到新版本）。要连发多版就**串行**：推一个标签 → 等该流水线跑完 → 再推下一个。发布后用 `curl -sI https://github.com/sheep-ah/inspiration/releases/latest | grep -i location` 确认 latest 指向预期标签。
+
 ```bash
 python3 scripts/set-version.py 0.2.0     # 写入 wails.json
 git commit -am "chore(release): 0.2.0"

@@ -302,4 +302,20 @@
 | 回归防护 | `internal/app/open_test.go` 覆盖 windows/darwin/linux 三条路径的命令构造（含"explorer 不得隐藏窗口"与"`/select` 路径必须带引号"） |
 | 待用户复验 | Windows 上点「打开所在文件夹」应弹出资源管理器并选中该文件；「打开文件」按钮也应正常（若两者之一仍无反应，按 §9.7 的表抓证据） |
 
+### 9.9 v0.1.5 发布记录：更新下载超时（2026-10-16）
+
+用户提问"下载并更新的超时配的是多久"，核查时发现配置本身不合理——这是本版修复的内容。
+
+| 项 | 内容 |
+|---|---|
+| 问题 | `updater.New()` 用了 `http.Client{Timeout: 60 * time.Second}`。Go 的这个 Timeout 覆盖"建连 + 重定向 + **读完整个响应体**"，因此**整包必须在 60 秒内下完**：Windows 安装包 9.97 MB → 要求 ≥166 KB/s，便携版 17.7 MB → ≥296 KB/s，macOS arm64 zip 5.76 MB → ≥96 KB/s。低于该带宽即报"下载失败（请检查网络后重试）：context deadline exceeded"。应用层虽给了 30 分钟 context（`DownloadUpdate`），但被这个 60 秒上限先掐死；且当时没有停滞检测，一旦挪掉上限，卡死的连接会挂满 30 分钟 |
+| 修复 | ① 不再设 `http.Client.Timeout`，传输时长交给调用方 context（应用层 30 分钟）；② Transport 只约束建连与首字节：Dial 30s / TLS 15s / `ResponseHeaderTimeout` 60s；③ 新增停滞检测 `downloadStallTimeout` = **90 秒无任何数据**才中止并提示可重试（"慢但一直在走"不杀） |
+| 实现踩坑 | 可取消的 ctx 必须在构造 `http.Request` **之前**派生，否则 `cancel()` 影响不到正在读的响应体（第一版就挂在 `persistConn.Read`，测试超时暴露） |
+| 回归防护 | `internal/updater/timeout_test.go`：断言 Client 无整体 Timeout 但设置了建连/首字节/停滞超时；停滞下载在 stall 超时内中止、给出"停滞"原因、且删除半成品文件；慢但持续有数据的下载必须成功并通过 sha256 校验 |
+| 文档 | `docs/development.md` §3.4 新增"下载超时策略"表；跨平台陷阱新增第 11 条（不要给大文件下载设 Client.Timeout + ctx 派生顺序） |
+| 版本提交 / 标签 | `c45e658`（`chore(release): 0.1.5`），标签 `v0.1.5` |
+| 发布流水线 | Release run #6（<https://github.com/sheep-ah/inspiration/actions/runs/38899337856>）：`validate` / `测试门禁` / 三平台构建 / `publish` **全部成功**，正式发布 8 个资产 |
+| 发布包实测 | dmg 与 zip 的本地 sha256 与 `checksums.txt` 一致（`aafecf84…` / `b4146e39…`）；dmg 挂载含 `Applications → /Applications` 且 `--version` = `v0.1.5`、`codesign --verify` 通过；zip 解压后 `--version` = `v0.1.5`、`--selfcheck` 退出码 0；`latest.json` 六项资产正确 |
+| 待用户复验 | Windows 上"下载并更新"在较慢网络下应能完整下载（不再 60 秒掐断）；停滞时提示"下载停滞超过 90 秒…可重试" |
+
 本章（§9）与 §7 的关系：§7 是"当前环境无法验证"的清单，§9 是"已发布产物上发现的缺陷及其修复"与"发布记录"，两者独立。

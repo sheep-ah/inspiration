@@ -86,6 +86,14 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 - 安装前做结构校验（macOS：`Info.plist` + `Contents/MacOS` 内可执行文件）；替换前备份，失败回滚
 - **不触碰数据目录**；更新只替换应用本体
 
+**下载超时策略**（v0.1.5 起，改的时候务必想清楚）：
+
+| 项 | 值 | 说明 |
+|---|---|---|
+| 传输总时长 | 由调用方 context 决定（应用层 `DownloadUpdate` 给 **30 分钟**） | 不要设 `http.Client.Timeout`：它覆盖"建连 + 重定向 + **读完整个响应体**"，60 秒上限等于要求 ≥166 KB/s（Windows 安装包 9.97 MB），跨境链路上必然失败 |
+| 建连 / TLS / 首字节 | Dial 30s、TLS 15s、`ResponseHeaderTimeout` 60s | 只约束"连得上、有响应"，不限制传输时长 |
+| 停滞 | `downloadStallTimeout` = **90 秒无任何数据** | "慢但一直在走"不杀，"卡死不动"才放弃；半成品文件会被删除 |
+
 ## 4. 本地开发
 
 ### 4.1 环境要求
@@ -146,6 +154,7 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 9. **Windows 上子进程会弹控制台窗口**：应用是 GUI 子系统（自身无控制台），启动**控制台程序**（`cmd`/`powershell`/`reg`）时 Windows 会**为它新建一个控制台窗口**。用户看到的就是"上传模板/生成合同时弹出命令行执行脚本"。这类启动点必须调用 `sysproc.HideWindow(cmd)`（`internal/sysproc`，非 Windows 平台为空操作），它会置 `HideWindow`（SW_HIDE）并加 `CREATE_NO_WINDOW`。
    **但绝不能对 GUI 程序这么做**：给 `explorer.exe` 设 `SW_HIDE` 会把它要打开的那个窗口一起隐藏——现场就是"点击打开所在文件夹没反应"（v0.1.1 引入、v0.1.4 修掉的真实回归）。判断标准是**被启动的程序是不是控制台程序**：`cmd`/`powershell`/`reg`/`soffice` 要隐藏；`explorer`、`open`（macOS）不需要也不允许隐藏。打开/定位文件的命令构造集中在 `internal/app/open.go` 的 `openCommandFor`/`revealCommandFor`（纯函数，跨平台单测覆盖）。更新流程的批处理同样走隐藏路径（脚本内用 `ping` 延时，不依赖控制台）
 10. **Windows 批处理脚本必须用 CRLF，且不要内嵌中文路径**：`cmd.exe` 执行 `goto` 时按**字节偏移**重新定位脚本文件，LF-only 会让偏移算错、`goto` 之后从行中间继续执行——现场表现为 `'el'`/`'tart'`/`'/nobreak'` 这类"碎片命令"、更新静默失败。另外 `cmd.exe` 按**控制台代码页**解码脚本字节，脚本里写 UTF-8 的中文路径（安装目录/数据目录都含「灵感」）会被解成乱码，`if exist`/`copy`/`start` 指向不存在的路径（表现为"装完不重启/根本没覆盖"）。因此：生成 `.cmd` 一律走 `updater.windowsUpdateScript()`（CRLF + **纯 ASCII**，路径经 `%INSPIRATION_UPDATE_PKG%`/`%INSPIRATION_UPDATE_EXE%` 环境变量传入，环境变量是 UTF-16、不受编码影响），单测锁定"无裸 LF"与"无非 ASCII 字节"。同理：无控制台场景不要用 `timeout.exe`（需要控制台输入句柄），改用 `ping -n N 127.0.0.1 >nul` 延时；自删用 `(goto) 2>nul & del "%~f0"`。Windows 侧还有真实执行脚本的用例（CI 的 windows job 跑），详见 `docs/phase6/acceptance-report.md` §9.4
+11. **不要给大文件的下载设 `http.Client.Timeout`**：Go 的这个 Timeout 包含"读完响应体"，而更新包有 6~18 MB——60 秒上限等于要求 ≥166 KB/s，稍慢的用户必然报"下载超时"（真实故障，见 §3.4 与 `docs/phase6/acceptance-report.md` §9.9）。正确姿势：整体时长交给 context，建连/首字节单独设限，另加"连续 N 秒没有数据"的停滞检测。附带一个坑：可取消的 ctx 必须在构造 `http.Request` **之前**派生，否则 `cancel()` 影响不到正在读的响应体
 
 ## 6. CI/CD
 

@@ -33,6 +33,10 @@ const DefaultRepo = "sheep-ah/inspiration"
 // DefaultBaseURL 是 GitHub API 根地址（测试可替换）。
 const DefaultBaseURL = "https://api.github.com"
 
+// DefaultDownloadBaseURL 是发布资产（latest.json 与安装包）的基地址。
+// 走 github.com 的发布 CDN，不受 API 速率限制。
+const DefaultDownloadBaseURL = "https://github.com"
+
 // maxDownloadBytes 单个下载文件的大小上限（防止磁盘被写满）。
 const maxDownloadBytes = 600 << 20
 
@@ -87,12 +91,15 @@ type Info struct {
 
 // Client 是与 GitHub 交互的客户端。
 type Client struct {
-	Repo     string
-	BaseURL  string
-	HTTP     *http.Client
-	GOOS     string
-	GOARCH   string
-	currentV string
+	Repo    string
+	BaseURL string
+	// DownloadBaseURL 是发布资产（latest.json / 安装包）的基地址；生产为 github.com，
+	// 单测可指向 httptest 服务器。
+	DownloadBaseURL string
+	HTTP            *http.Client
+	GOOS            string
+	GOARCH          string
+	currentV        string
 	// allowLocalHTTP 仅供单元测试使用：允许访问本机 http 测试服务器。
 	// 生产代码永远不会设置它，因此对外行为始终是"仅 HTTPS + 仅 GitHub 域名"。
 	allowLocalHTTP bool
@@ -104,12 +111,13 @@ type Client struct {
 // New 创建默认客户端。
 func New(currentVersion string) *Client {
 	return &Client{
-		Repo:     DefaultRepo,
-		BaseURL:  DefaultBaseURL,
-		HTTP:     newHTTPClient(),
-		GOOS:     runtime.GOOS,
-		GOARCH:   runtime.GOARCH,
-		currentV: currentVersion,
+		Repo:            DefaultRepo,
+		BaseURL:         DefaultBaseURL,
+		DownloadBaseURL: DefaultDownloadBaseURL,
+		HTTP:            newHTTPClient(),
+		GOOS:            runtime.GOOS,
+		GOARCH:          runtime.GOARCH,
+		currentV:        currentVersion,
 
 		stallTimeout: downloadStallTimeout,
 	}
@@ -169,6 +177,100 @@ func (c *Client) latestRelease(ctx context.Context) (*Release, error) {
 	if c.Repo == "" {
 		return nil, errors.New("未配置发布仓库")
 	}
+	// 优先读发布资产里的 latest.json：它由发布流水线生成，含版本、标签、更新说明与
+	// 各平台资产的 sha256/体积，信息足够挑选与校验，而且走的是 github.com 的发布 CDN，
+	// **不受 API 速率限制**（真实故障：用户点"检查更新"报 403 Forbidden——未登录调用
+	// GitHub API 每小时只有 60 次、按 IP 计，同一出口 IP 的其它工具用光后应用就失败）。
+	rel, manifestErr := c.latestReleaseFromManifest(ctx)
+	if manifestErr == nil {
+		return rel, nil
+	}
+	// 兜底：老版本发布没有 latest.json（或清单不可用）时回到 API
+	rel, apiErr := c.latestReleaseFromAPI(ctx)
+	if apiErr == nil {
+		return rel, nil
+	}
+	return nil, fmt.Errorf("获取最新版本失败：%v；备用接口：%v", manifestErr, apiErr)
+}
+
+// releaseManifest 是 latest.json 的结构（由 release.yml 生成）。
+type releaseManifest struct {
+	Version     string `json:"version"`
+	Tag         string `json:"tag"`
+	ReleaseURL  string `json:"releaseUrl"`
+	PublishedAt string `json:"publishedAt"`
+	Notes       string `json:"notes"`
+	Assets      []struct {
+		Name   string `json:"name"`
+		OS     string `json:"os"`
+		Arch   string `json:"arch"`
+		Kind   string `json:"kind"`
+		Size   int64  `json:"size"`
+		SHA256 string `json:"sha256"`
+	} `json:"assets"`
+}
+
+// latestReleaseFromManifest 通过发布资产 latest.json 获取最新正式版本。
+// 稳定地址：https://github.com/<repo>/releases/latest/download/latest.json
+func (c *Client) latestReleaseFromManifest(ctx context.Context) (*Release, error) {
+	base := strings.TrimRight(c.DownloadBaseURL, "/")
+	if base == "" {
+		base = DefaultDownloadBaseURL
+	}
+	endpoint := fmt.Sprintf("%s/%s/releases/latest/download/latest.json", base, c.Repo)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "inspiration-updater")
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("无法连接更新服务（请检查网络）：%w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("获取版本清单失败：%s%s", resp.Status, httpStatusDetail(resp.Body))
+	}
+
+	var m releaseManifest
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&m); err != nil {
+		return nil, fmt.Errorf("解析版本清单失败：%w", err)
+	}
+	if m.Tag == "" || len(m.Assets) == 0 {
+		return nil, errors.New("版本清单内容不完整")
+	}
+	if err := validateTag(m.Tag); err != nil {
+		return nil, err
+	}
+
+	rel := &Release{
+		TagName: m.Tag,
+		Name:    "灵感 " + m.Tag,
+		Body:    strings.TrimSpace(m.Notes),
+		HTMLURL: m.ReleaseURL,
+	}
+	if t, err := time.Parse(time.RFC3339, m.PublishedAt); err == nil {
+		rel.PublishedAt = t
+	}
+	for _, a := range m.Assets {
+		rel.Assets = append(rel.Assets, Asset{
+			Name:               a.Name,
+			Size:               a.Size,
+			BrowserDownloadURL: fmt.Sprintf("%s/%s/releases/download/%s/%s", base, c.Repo, m.Tag, url.PathEscape(a.Name)),
+			Digest:             "sha256:" + a.SHA256,
+		})
+	}
+	return rel, nil
+}
+
+// latestReleaseFromAPI 走 GitHub API（受未登录速率限制）。
+func (c *Client) latestReleaseFromAPI(ctx context.Context) (*Release, error) {
+
+	if c.Repo == "" {
+		return nil, errors.New("未配置发布仓库")
+	}
 	endpoint := fmt.Sprintf("%s/repos/%s/releases/latest", strings.TrimRight(c.BaseURL, "/"), c.Repo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -187,7 +289,7 @@ func (c *Client) latestRelease(ctx context.Context) (*Release, error) {
 	case http.StatusNotFound:
 		return nil, errors.New("更新服务返回 404：仓库或 Release 不存在")
 	default:
-		return nil, fmt.Errorf("更新服务返回异常状态：%s", resp.Status)
+		return nil, fmt.Errorf("更新服务返回异常状态：%s%s", resp.Status, httpStatusDetail(resp.Body))
 	}
 
 	var rel Release
@@ -205,6 +307,29 @@ func (c *Client) latestRelease(ctx context.Context) (*Release, error) {
 
 // pickAsset 按平台挑选要下载的资产。
 // 优先顺序：安装包（setup）> 便携版；macOS 优先 zip（可整包替换）> dmg（需人工安装）。
+// httpStatusDetail 尽力从错误响应体里取出服务端说明（例如速率限制的原因），
+// 让用户看到"为什么失败"而不是只有一个 403。
+func httpStatusDetail(body io.Reader) string {
+	data, err := io.ReadAll(io.LimitReader(body, 8<<10))
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(data, &payload) != nil {
+		return ""
+	}
+	msg := strings.TrimSpace(payload.Message)
+	if msg == "" {
+		return ""
+	}
+	if strings.Contains(strings.ToLower(msg), "rate limit") {
+		return "（" + msg + "；GitHub 未登录接口调用次数超限，稍后重试即可）"
+	}
+	return "（" + msg + "）"
+}
+
 func pickAsset(assets []Asset, goos, goarch string) (*Asset, error) {
 	var preferred, fallback []string
 	switch goos {

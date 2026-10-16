@@ -300,54 +300,6 @@ jobs:
           [ "$fail" -eq 0 ] || { echo "::error::资产不齐全，禁止发布"; exit 1; }
           echo "✔ 六项资产齐全"
 
-      - name: 计算校验和并生成 latest.json
-        run: |
-          set -e
-          version="${{ needs.validate.outputs.version }}"
-          tag="${{ github.ref_name }}"
-          cd artifacts
-          # 稳定的顺序，方便比对
-          for f in *; do
-            case "$f" in checksums.txt|latest.json) continue;; esac
-            echo "$f"
-          done | sort > /tmp/asset-list.txt
-          : > checksums.txt
-          while read -r f; do shasum -a 256 "$f" >> checksums.txt; done < /tmp/asset-list.txt
-          echo "== checksums.txt =="; cat checksums.txt
-
-          python3 - "$version" "$tag" <<'PY'
-          import json, os, sys, hashlib
-          version, tag = sys.argv[1], sys.argv[2]
-          def meta(name):
-              os_name = "windows" if "windows" in name else "darwin"
-              arch = "amd64" if "amd64" in name else ("arm64" if "arm64" in name else "")
-              kind = ("installer" if name.endswith("_setup.exe")
-                      else "portable" if name.endswith("_portable.exe")
-                      else "dmg" if name.endswith(".dmg") else "zip")
-              return os_name, arch, kind
-          assets = []
-          for name in sorted(os.listdir(".")):
-              if name in ("checksums.txt", "latest.json"):
-                  continue
-              with open(name, "rb") as fh:
-                  digest = hashlib.sha256(fh.read()).hexdigest()
-              os_name, arch, kind = meta(name)
-              assets.append({
-                  "name": name, "os": os_name, "arch": arch, "kind": kind,
-                  "sha256": digest, "size": os.path.getsize(name),
-              })
-          payload = {
-              "version": version,
-              "tag": tag,
-              "releaseUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/tag/{tag}",
-              "assetsUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}",
-              "assets": assets,
-          }
-          with open("latest.json", "w", encoding="utf-8") as fh:
-              json.dump(payload, fh, ensure_ascii=False, indent=2)
-          print(json.dumps(payload, ensure_ascii=False, indent=2))
-          PY
-
       - name: 生成更新说明
         run: |
           set -e
@@ -388,6 +340,63 @@ jobs:
             echo "- 安装包未做代码签名/公证：macOS 首次打开需右键「打开」；Windows 可能提示 SmartScreen。"
           } > /tmp/release-notes.md
           echo "== 更新说明 =="; cat /tmp/release-notes.md
+
+      - name: 计算校验和并生成 latest.json
+        run: |
+          set -e
+          version="${{ needs.validate.outputs.version }}"
+          tag="${{ github.ref_name }}"
+          cd artifacts
+          # 稳定的顺序，方便比对
+          for f in *; do
+            case "$f" in checksums.txt|latest.json) continue;; esac
+            echo "$f"
+          done | sort > /tmp/asset-list.txt
+          : > checksums.txt
+          while read -r f; do shasum -a 256 "$f" >> checksums.txt; done < /tmp/asset-list.txt
+          echo "== checksums.txt =="; cat checksums.txt
+
+          python3 - "$version" "$tag" <<'PY'
+          import json, os, sys, hashlib, datetime
+          version, tag = sys.argv[1], sys.argv[2]
+          # 更新说明与发布时间也放进清单：应用内更新优先读这份清单（不受 API 速率限制），
+          # 需要自己带上更新说明，否则界面上的"更新说明"会是空的。
+          try:
+              with open("/tmp/release-notes.md", encoding="utf-8") as fh:
+                  notes = fh.read()
+          except FileNotFoundError:
+              notes = ""
+          def meta(name):
+              os_name = "windows" if "windows" in name else "darwin"
+              arch = "amd64" if "amd64" in name else ("arm64" if "arm64" in name else "")
+              kind = ("installer" if name.endswith("_setup.exe")
+                      else "portable" if name.endswith("_portable.exe")
+                      else "dmg" if name.endswith(".dmg") else "zip")
+              return os_name, arch, kind
+          assets = []
+          for name in sorted(os.listdir(".")):
+              if name in ("checksums.txt", "latest.json"):
+                  continue
+              with open(name, "rb") as fh:
+                  digest = hashlib.sha256(fh.read()).hexdigest()
+              os_name, arch, kind = meta(name)
+              assets.append({
+                  "name": name, "os": os_name, "arch": arch, "kind": kind,
+                  "sha256": digest, "size": os.path.getsize(name),
+              })
+          payload = {
+              "version": version,
+              "tag": tag,
+              "publishedAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "notes": notes,
+              "releaseUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/tag/{tag}",
+              "assetsUrl": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}",
+              "assets": assets,
+          }
+          with open("latest.json", "w", encoding="utf-8") as fh:
+              json.dump(payload, fh, ensure_ascii=False, indent=2)
+          print(json.dumps(payload, ensure_ascii=False, indent=2))
+          PY
 
       - name: 以 draft 创建 Release 并上传资产
         env:

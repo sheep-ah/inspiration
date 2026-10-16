@@ -16,12 +16,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -33,6 +35,20 @@ const DefaultBaseURL = "https://api.github.com"
 
 // maxDownloadBytes 单个下载文件的大小上限（防止磁盘被写满）。
 const maxDownloadBytes = 600 << 20
+
+// 超时策略（都踩过真实的坑）：
+//
+//   - **不要设 http.Client.Timeout**。它覆盖"建立连接 + 重定向 + 读完整个响应体"，
+//     而更新包有 6~18 MB：60 秒上限意味着必须 ≥166 KB/s（Windows 安装包 9.97 MB）才能
+//     下完——跨境链路上稍慢就必然报"下载超时"。
+//   - 传输时长交给调用方的 context（应用层给 30 分钟），建连与首字节单独设限。
+//   - 真正该放弃下载的信号是"卡住不动"，由 downloadStallTimeout 处理。
+const (
+	downloadStallTimeout  = 90 * time.Second // 连续这么久没有收到任何数据 → 判定停滞并中止
+	dialTimeout           = 30 * time.Second
+	tlsHandshakeTimeout   = 15 * time.Second
+	responseHeaderTimeout = 60 * time.Second // 只约束首字节，不限制传输总时长
+)
 
 // Asset 是发布资产。
 type Asset struct {
@@ -80,6 +96,9 @@ type Client struct {
 	// allowLocalHTTP 仅供单元测试使用：允许访问本机 http 测试服务器。
 	// 生产代码永远不会设置它，因此对外行为始终是"仅 HTTPS + 仅 GitHub 域名"。
 	allowLocalHTTP bool
+	// stallTimeout 是"多久没有收到数据就判定停滞"（默认 downloadStallTimeout）；
+	// 单测会把它调小来构造停滞场景。
+	stallTimeout time.Duration
 }
 
 // New 创建默认客户端。
@@ -87,10 +106,27 @@ func New(currentVersion string) *Client {
 	return &Client{
 		Repo:     DefaultRepo,
 		BaseURL:  DefaultBaseURL,
-		HTTP:     &http.Client{Timeout: 60 * time.Second},
+		HTTP:     newHTTPClient(),
 		GOOS:     runtime.GOOS,
 		GOARCH:   runtime.GOARCH,
 		currentV: currentVersion,
+
+		stallTimeout: downloadStallTimeout,
+	}
+}
+
+// newHTTPClient 返回"只限制建连与首字节、不限制传输时长"的 HTTP 客户端。
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           (&net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}).DialContext,
+			TLSHandshakeTimeout:   tlsHandshakeTimeout,
+			ResponseHeaderTimeout: responseHeaderTimeout,
+			IdleConnTimeout:       90 * time.Second,
+			ExpectContinueTimeout: time.Second,
+			ForceAttemptHTTP2:     true,
+		},
 	}
 }
 
@@ -240,6 +276,49 @@ func (c *Client) Download(ctx context.Context, assetURL, dstPath string, expecte
 	if err := c.checkHost(assetURL); err != nil {
 		return "", err
 	}
+	// 停滞看门狗：只要还有数据进来就一直续命；连续 stall 时间没有数据就中止请求。
+	// 这样既能容忍"慢但一直在走"的下载，又不会让断掉的连接一直挂到 30 分钟。
+	//
+	// 注意顺序：可取消的 ctx 必须在**构造请求之前**派生，否则 cancel() 影响不到
+	// 已经在读的响应体（踩过：请求挂在 persistConn.Read 上直到测试超时）。
+	stall := c.stallTimeout
+	if stall <= 0 {
+		stall = downloadStallTimeout
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var stalled atomic.Bool
+	progressSignal := make(chan struct{}, 1)
+	stopWatch := make(chan struct{})
+	watchDone := make(chan struct{})
+	go func() {
+		defer close(watchDone)
+		timer := time.NewTimer(stall)
+		defer timer.Stop()
+		for {
+			select {
+			case <-stopWatch:
+				return
+			case <-progressSignal:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(stall)
+			case <-timer.C:
+				stalled.Store(true)
+				cancel()
+				return
+			}
+		}
+	}()
+	defer func() {
+		close(stopWatch)
+		<-watchDone
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL, nil)
 	if err != nil {
 		return "", err
@@ -248,6 +327,9 @@ func (c *Client) Download(ctx context.Context, assetURL, dstPath string, expecte
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
+		if stalled.Load() {
+			return "", fmt.Errorf("下载停滞超过 %s（网络中断或速度过低），已中止，可重试", stall)
+		}
 		return "", fmt.Errorf("下载失败（请检查网络后重试）：%w", err)
 	}
 	defer resp.Body.Close()
@@ -278,6 +360,10 @@ func (c *Client) Download(ctx context.Context, assetURL, dstPath string, expecte
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
+			select {
+			case progressSignal <- struct{}{}:
+			default:
+			}
 			if written+int64(n) > maxDownloadBytes {
 				_ = os.Remove(dstPath)
 				return "", errors.New("安装包超过允许的最大体积，已中止")
@@ -296,6 +382,9 @@ func (c *Client) Download(ctx context.Context, assetURL, dstPath string, expecte
 		}
 		if readErr != nil {
 			_ = os.Remove(dstPath)
+			if stalled.Load() {
+				return "", fmt.Errorf("下载停滞超过 %s（网络中断或速度过低），已中止，可重试", stall)
+			}
 			return "", fmt.Errorf("下载中断（可重试）：%w", readErr)
 		}
 	}

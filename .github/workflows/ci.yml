@@ -200,12 +200,13 @@ jobs:
         shell: pwsh
         run: |
           # 1) internal/sysproc：HideWindow 置上 SW_HIDE + CREATE_NO_WINDOW、子进程仍能执行
-          go test ./internal/sysproc/ -count=1 -v
+          go test ./internal/sysproc/ -count=1 -v -timeout 120s
           if ($LASTEXITCODE -ne 0) { throw "sysproc tests failed (exit code $LASTEXITCODE)" }
           # 2) internal/updater 的 Windows 用例：把生成的更新批处理脚本真跑一遍
           #    （等待进程退出 → 覆盖/静默安装 → 重启 → 自删）。LF 行尾会让 cmd 的
           #    goto 错位、脚本碎片化执行，这里会直接失败。
-          go test ./internal/updater/ -run 'TestWindowsUpdateScript' -count=1 -v
+          #    -timeout 是兜底：用例万一卡住也只烧 3 分钟，不会拖住整个 job。
+          go test ./internal/updater/ -run 'TestWindowsUpdateScript' -count=1 -v -timeout 180s
           if ($LASTEXITCODE -ne 0) { throw "windows update script tests failed (exit code $LASTEXITCODE)" }
 
       - name: 冒烟测试（Windows：GUI 子系统无 stdout，校验退出码与版本资源）

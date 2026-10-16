@@ -4,6 +4,7 @@ package updater
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,17 +77,32 @@ func runUpdateScriptE2E(t *testing.T, dir, download, appPath, marker, wantMarker
 	}
 
 	started := time.Now()
-	// 脚本本身有等待上限，这里再加一道 90 秒兜底：真出现死循环时测试要快速失败，
-	// 而不是把整个 CI job 拖住。
+	// 关键：不要用 CombinedOutput/pipe 抓输出。脚本里 `start` 拉起的子进程会**继承管道
+	// 句柄**，即使外层 cmd.exe 退出、甚至被 ctx kill，管道也不会 EOF，读端永远等下去
+	// （这正是 CI 里这个用例卡住 20+ 分钟的原因）。改成重定向到文件：Wait 只看进程退出。
+	outFile := filepath.Join(dir, "script-out.txt")
+	f, err := os.Create(outFile)
+	if err != nil {
+		t.Fatalf("创建输出文件失败：%v", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "cmd", "/c", scriptPath).CombinedOutput()
+	command := exec.CommandContext(ctx, "cmd", "/c", scriptPath)
+	command.Stdout = f
+	command.Stderr = f
+	command.WaitDelay = 15 * time.Second // 进程不退出时的兜底：先 Kill 再等一小会儿
+	runErr := command.Run()
+	_ = f.Close()
 	elapsed := time.Since(started)
-	if ctx.Err() != nil {
-		t.Fatalf("脚本执行超过 90 秒未结束（疑似等待循环没有退出）\n脚本：\n%s", script)
+	out, _ := os.ReadFile(outFile)
+	if errors.Is(runErr, exec.ErrWaitDelay) {
+		runErr = nil // 进程已退出，只是仍有子进程占着 I/O 句柄
 	}
-	if err != nil {
-		t.Fatalf("脚本执行失败（method=%s）：%v\n输出：%s\n脚本：\n%s", method, err, out, script)
+	if ctx.Err() != nil {
+		t.Fatalf("脚本执行超过 90 秒未结束（疑似等待循环没有退出）\n脚本：\n%s\n输出：%s", script, out)
+	}
+	if runErr != nil {
+		t.Fatalf("脚本执行失败（method=%s）：%v\n输出：%s\n脚本：\n%s", method, runErr, out, script)
 	}
 	for _, bad := range []string{"不是内部或外部命令", "找不到批处理文件", "语法不正确", "系统找不到指定的路径"} {
 		if strings.Contains(string(out), bad) {

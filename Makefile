@@ -47,10 +47,17 @@ test-race: ## 竞态检测
 
 ci: lint ## 本地复现 CI 的全部检查（推送前跑一次）
 	go test ./... -count=1 -timeout 15m
-	@# 用 cp1252 模拟 Windows 控制台编码跑版本脚本（非 ASCII 输出会直接崩）
+	@# 用 cp1252 模拟 Windows 控制台编码跑版本脚本（非 ASCII 输出会直接崩）。
+	@# 注意在临时目录里跑，避免这个检查改写仓库里的 wails.json。
 	@printf "  set-version.py (cp1252 控制台): "; \
-	if out=$$(PYTHONIOENCODING=cp1252 python3 scripts/set-version.py 0.0.0 2>&1); then echo "✔"; \
-	else echo "✘"; echo "$$out" | tail -5; exit 1; fi
+	tmp=$$(mktemp -d); mkdir -p $$tmp/scripts; \
+	cp scripts/set-version.py $$tmp/scripts/; \
+	printf '{"info":{"productVersion":"0.0.0"}}' > $$tmp/wails.json; \
+	if out=$$(PYTHONIOENCODING=cp1252 python3 $$tmp/scripts/set-version.py 0.1.0 2>&1); then \
+		if grep -q '"productVersion": "0.1.0"' $$tmp/wails.json; then echo "✔"; \
+		else echo "✘（版本未写入）"; rm -rf $$tmp; exit 1; fi; \
+	else echo "✘"; echo "$$out" | tail -5; rm -rf $$tmp; exit 1; fi; \
+	rm -rf $$tmp
 	@# 以 Linux 视角再跑一次 staticcheck：避免"某个文件只在 macOS 编译，导致 Linux 上判定未使用"
 	@printf "  GOOS=linux staticcheck: "; \
 	if out=$$(GOOS=linux CGO_ENABLED=0 "$$(command -v staticcheck || echo "$$(go env GOPATH)/bin/staticcheck")" ./... 2>&1); then echo "✔"; \

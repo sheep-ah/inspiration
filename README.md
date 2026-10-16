@@ -21,6 +21,7 @@
 | 阶段 5 应用内更新 | ✅ 已完成：`v0.1.0` 已正式发布，macOS 侧用真实发布包端到端验证通过（检查 → 下载 → 校验 → 安装 → 重启 → 数据保留），见 [`docs/phase5/`](docs/phase5/README.md)；Windows 更新路径待真机验证 |
 | 阶段 6 最终验收与交付 | ✅ 已完成：验收报告 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md)、用户说明 [`docs/user-guide.md`](docs/user-guide.md)、开发文档 [`docs/development.md`](docs/development.md)；未验证项已逐条标注 |
 | 交付后修复：macOS dmg 缺安装别名 | ✅ 已修复并随 **v0.1.1** 发布（`scripts/make-dmg.sh` + 打包时挂载自检）：已下载发布包实测——卷内含 `灵感.app` 与 `Applications → /Applications` 别名，sha256 与 `checksums.txt` 一致。见 [`docs/phase4/README.md`](docs/phase4/README.md) §3.4 |
+| 交付后修复：Windows「打开所在文件夹」无反应 | ✅ 已修复并随 **v0.1.4** 发布（GUI 程序不能设 SW_HIDE——会把要打开的窗口一起隐藏；`/select` 路径加引号；失败兜底为打开所在目录），见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.7 |
 | 交付后修复：Windows 应用内更新静默失败 | ✅ 已修复并随 **v0.1.2** 发布（脚本强制 CRLF + 纯 ASCII、路径走环境变量、`ping` 延时、隐藏窗口、等待上限），见验收报告 §9.5；Windows 侧已由 CI 真实执行脚本，真机界面流程待复验；`v0.1.0`/`v0.1.1` 自带更新器仍是坏的，需手动装一次 v0.1.2 |
 | 交付后修复：Windows 子进程弹命令行窗口 | ✅ 已修复并随 **v0.1.1** 发布（`internal/sysproc` 抑制控制台窗口，覆盖转换探测、`.doc` 转换、提示框、打开文件全部启动点）；CI 的 windows runner 真实执行了专项测试，见 [`docs/phase6/acceptance-report.md`](docs/phase6/acceptance-report.md) §9.2；Windows 上的视觉效果待用户复验 |
 

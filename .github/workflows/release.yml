@@ -221,8 +221,8 @@ jobs:
           arch="${{ matrix.asset }}"
           mkdir -p dist
           ditto -c -k --keepParent "build/bin/灵感.app" "dist/inspiration_${version}_${arch}.zip"
-          hdiutil create -volname "灵感" -srcfolder "build/bin/灵感.app" -ov -format UDZO \
-            "dist/inspiration_${version}_${arch}.dmg"
+          # dmg 必须带「应用程序」拖拽别名，脚本会在挂载后自检（缺失则失败，不产出产物）
+          bash scripts/make-dmg.sh "build/bin/灵感.app" "dist/inspiration_${version}_${arch}.dmg"
           ls -la dist
 
       - name: 打包正式产物（Windows）

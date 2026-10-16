@@ -11,10 +11,23 @@
 |---|---|---|
 | Windows 10/11 64 位 | `inspiration_<版本>_windows_amd64_setup.exe` | 安装版（推荐，会顺带处理 WebView2 运行时） |
 | Windows（免安装） | `inspiration_<版本>_windows_amd64_portable.exe` | 便携版，双击即用 |
-| macOS Apple Silicon（M 系列） | `inspiration_<版本>_darwin_arm64.dmg` | 推荐用 dmg 拖入「应用程序」 |
+| macOS Apple Silicon（M 系列） | `inspiration_<版本>_darwin_arm64.dmg` | 打开后把「灵感」拖进「应用程序」 |
 | macOS Intel | `inspiration_<版本>_darwin_amd64.dmg` | 同上 |
 
 下载地址：<https://github.com/sheep-ah/inspiration/releases>（每个版本还有 `.zip` 包，供应用内自动更新使用）
+
+### macOS 安装步骤（重要）
+
+1. 双击 `.dmg`，系统会挂载出一个窗口，里面有两个图标：**灵感** 和 **Applications（应用程序）**
+2. 把 **灵感** 拖到 **Applications** 上 → 应用被复制进 `/Applications`，这一步才叫"安装"
+3. 在 Finder 侧边栏点「推出」卸载这个 dmg 卷（或直接拖到废纸篓）
+4. 从「应用程序」里启动「灵感」
+
+> **不要直接在 dmg 窗口里双击「灵感」运行**：那只是从只读的 dmg 卷里临时运行，不会安装到电脑上，
+> 而且只读卷无法被应用内更新替换，更新会失败。请务必先拖进「应用程序」。
+>
+> 若你的 dmg 是 v0.1.0 及更早版本（窗口里**没有** Applications 图标）：请打开一个 Finder 窗口进入
+> 「应用程序」，再把 dmg 里的「灵感」拖过去；或改用 `.zip` 包解压后拖入。
 
 ### 首次打开被系统拦截怎么办
 

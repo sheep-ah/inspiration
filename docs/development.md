@@ -103,6 +103,8 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 | `make lint` | gofmt + go vet + staticcheck + 前端类型检查 |
 | **`make ci`** | **推送前跑一次：本地完整复现 CI 的全部检查（推荐）** |
 | `make selfcheck` | 构建后无界面自检（初始化数据目录与数据库） |
+| `make dmg` | 打当前平台的 dmg（内含「应用程序」拖拽别名，挂载自检通过才产出） |
+| `make package-macos-arm64` / `-amd64` | macOS 打包：`.app` + dmg（同样走 `scripts/make-dmg.sh` 自检） |
 | `make package-windows` | 打 Windows NSIS 安装包 |
 
 ### 4.3 命令行参数（排障用）
@@ -137,6 +139,8 @@ poc/docx-eval/           阶段 1 的引擎评估实验（保留原始数据与�
 4. **Windows 控制台编码**：Python 打印非 ASCII 会 `UnicodeEncodeError`（cp1252）；PowerShell 脚本不要写非 ASCII 路径
 5. **GUI 子系统 exe**：PowerShell 用 `&` 调用不会等待、`$LASTEXITCODE` 可能为空，必须 `Start-Process -Wait -PassThru`
 6. **GitHub Actions 步骤退出码**取最后一条命令的结果：不要以可能失败的命令结尾（如 `where.exe` 找不到就返回 1）
+7. **macOS dmg 必须带安装别名**：`hdiutil create -srcfolder App.app` 打出的 dmg 根目录只有一个 `.app`，没有指向 `/Applications` 的符号链接，用户双击只是"从只读卷运行"，看起来像"打开了但没安装"。统一用 `scripts/make-dmg.sh`（暂存目录放 `.app` + `Applications` 别名，打完挂载自检，缺别名就失败且不产出 dmg）
+8. **shell 里 `$VAR` 紧邻中文字符**：`"$OUT_DMG（"` 会被解析成变量名 `OUT_DMG（`，`set -u` 下报 unbound variable。中文相邻的变量一律写 `${VAR}`
 
 ## 6. CI/CD
 

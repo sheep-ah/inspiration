@@ -174,3 +174,20 @@
 **下列行为无法在当前环境验证，已如实标注且不视为通过**：Microsoft Word 打开结果、Windows 安装与更新、macOS Intel 真机、GUI 点击式更新、代码签名/公证、Word/WPS 转换通道、磁盘写满场景、中文输入法实操、超大模板性能。
 
 按阶段 6 要求，以上未验证项需在具备对应环境时补验；补验完成后本报告第 7 节对应行可更新为"已验证"并附证据。
+
+## 9. 交付后修复记录
+
+### 9.1 macOS dmg 缺少安装别名（2026-10-16，v0.1.0 发布之后发现）
+
+用户反馈双击 `inspiration_0.1.0_darwin_arm64.dmg`「只能打开，没有真正安装到电脑上」，核查结论与修复如下：
+
+| 项 | 内容 |
+|---|---|
+| 现象 | 双击 dmg 后卷内只有一个 `灵感.app`，双击它只是从只读卷运行，没有安装到 `/Applications` |
+| 根因 | 打包用 `hdiutil create -srcfolder build/bin/灵感.app`，卷里没有指向 `/Applications` 的符号链接（macOS 不会自动安装 `.app`） |
+| 影响面 | `v0.1.0` 的 macOS dmg（arm64/amd64）；`.zip` 不受影响。从只读 dmg 内运行的应用也无法应用内更新（更新器需就地整包替换） |
+| 修复 | 新增 `scripts/make-dmg.sh`：暂存目录放 `.app` + `Applications → /Applications` 别名，打完**挂载自检**（应用目录、可执行文件、Info.plist、签名、别名五项），不通过则删除产物并非 0 退出；`ci.yml` / `release.yml` 改用该脚本（CI 侧因此获得回归保护）；`Makefile` 增 `make dmg`，`make package-macos-*` 一并产 dmg；`docs/user-guide.md` §1 增加明确的安装步骤与"不要在 dmg 里直接双击运行"告警 |
+| 验证证据 | `make dmg` → 挂载 `/tmp/mnt-make`：卷内为 `Applications`（`readlink` = `/Applications`）与 `灵感.app`；从卷内复制到本地目录后 `--version` = `v0.1.0`、`--selfcheck` exit 0；负例（不存在的应用包、缺 Info.plist）均 exit 1 且不产出 dmg |
+| 未回填 | 已发布的 `v0.1.0` 资产保持原样；修复从下一个版本生效。详见 [`../phase4/README.md`](../phase4/README.md) §3.4 |
+
+本节与 §7 的关系：§7 是"当前环境无法验证"的清单，本节是"已发布产物上发现的缺陷及其修复"，两者独立。

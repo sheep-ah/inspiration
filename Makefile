@@ -19,7 +19,7 @@ LDFLAGS := -X $(PKG)/internal/version.Version=$(VERSION) \
            -X $(PKG)/internal/version.Commit=$(COMMIT) \
            -X $(PKG)/internal/version.BuildTime=$(BUILT_AT)
 
-.PHONY: help dev build build-all test test-race ci lint fmt vet frontend clean package-windows package-macos-amd64 package-macos-arm64 package-macos-universal selfcheck
+.PHONY: help dev build build-all test test-race ci lint fmt vet frontend clean package-windows dmg package-macos-amd64 package-macos-arm64 package-macos-universal selfcheck
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -102,11 +102,17 @@ clean: ## 清理构建产物
 package-windows: ## Windows x64 NSIS 安装包（需 mingw-w64 + nsis）
 	wails build -platform windows/amd64 -nsis -webview2 download -ldflags "$(LDFLAGS)"
 
-package-macos-amd64: ## macOS Intel 打包
+dmg: ## 打包当前平台的 dmg（内含「应用程序」拖拽别名，挂载自检通过才产出）
+	wails build -ldflags "$(LDFLAGS)"
+	bash scripts/make-dmg.sh "build/bin/$(BIN).app" "dist/inspiration_$(VERSION)_darwin_$(shell go env GOARCH).dmg"
+
+package-macos-amd64: ## macOS Intel 打包（.app + dmg）
 	wails build -platform darwin/amd64 -ldflags "$(LDFLAGS)"
+	bash scripts/make-dmg.sh "build/bin/$(BIN).app" "dist/inspiration_$(VERSION)_darwin_amd64.dmg"
 
-package-macos-arm64: ## macOS Apple Silicon 打包
+package-macos-arm64: ## macOS Apple Silicon 打包（.app + dmg）
 	wails build -platform darwin/arm64 -ldflags "$(LDFLAGS)"
+	bash scripts/make-dmg.sh "build/bin/$(BIN).app" "dist/inspiration_$(VERSION)_darwin_arm64.dmg"
 
-package-macos-universal: ## macOS 通用包
+package-macos-universal: ## macOS 通用包（仅 .app）
 	wails build -platform darwin/universal -ldflags "$(LDFLAGS)"

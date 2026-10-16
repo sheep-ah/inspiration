@@ -5,8 +5,8 @@
 | 平台 | 产物 | 构建方式 | 实测状态 |
 |---|---|---|---|
 | Windows x64 | `灵感-Setup-<ver>-amd64.exe`（NSIS，建议 user scope，免 UAC）+ 便携版 `灵感-<ver>-windows-amd64.exe` | `wails build -platform windows/amd64 -nsis -webview2 download` | 本机交叉编译 ✅（exe 11.4 MB / 安装包 6.1 MB，共 12.0s）；**未在 Windows 上运行验证** |
-| macOS Intel (amd64) | `灵感-<ver>-darwin-amd64.dmg`（内含 `.app`，同时提供 `.zip` 供自动更新使用） | `wails build -platform darwin/amd64` + `hdiutil`/`create-dmg` 打 dmg | 本机交叉编译 ✅（29.3s）；**未在 Intel Mac 上运行验证** |
-| macOS Apple Silicon (arm64) | `灵感-<ver>-darwin-arm64.dmg` + `.zip` | `wails build -platform darwin/arm64` | 本机原生编译 ✅；**未在真机安装验证** |
+| macOS Intel (amd64) | `灵感-<ver>-darwin-amd64.dmg`（内含 `.app` + 指向 `/Applications` 的安装别名，同时提供 `.zip` 供自动更新使用） | `wails build -platform darwin/amd64` + `scripts/make-dmg.sh` 打 dmg（脚本挂载自检别名，缺别名即失败） | 本机交叉编译 ✅（29.3s）；**未在 Intel Mac 上运行验证** |
+| macOS Apple Silicon (arm64) | `灵感-<ver>-darwin-arm64.dmg` + `.zip` | `wails build -platform darwin/arm64` + `scripts/make-dmg.sh` | 本机原生编译 ✅ 与 dmg 内容自检 ✅；**未在真机安装验证** |
 | （可选）macOS 通用包 | `灵感-<ver>-darwin-universal.dmg` | `wails build -platform darwin/universal`（16 MB） | 本机 ✅ |
 
 - Windows 的 WebView2 运行时依赖由 NSIS 安装器处理（`-webview2 download`：安装时下载；`embed`：随包携带离线安装器，体积增大；`browser`：打开浏览器引导）。

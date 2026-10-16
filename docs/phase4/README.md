@@ -138,6 +138,16 @@ linux/windows/darwin 三平台的**测试二进制编译**。
 
 **第一条 CI 修复的效果已确认**：`go test`（非 race）步骤通过，说明"Linux 文件名 255 字节"问题已解决。
 
+## 3.4 交付后发现的 dmg 安装问题与修复（2026-10-16，v0.1.0 发布之后）
+
+用户反馈：双击 `inspiration_0.1.0_darwin_arm64.dmg`「只能打开，没有真正安装到电脑上」。
+
+- **根因**：打包命令为 `hdiutil create -volname 灵感 -srcfolder build/bin/灵感.app ...`，卷根目录里**只有一个 `.app`**，没有指向 `/Applications` 的符号链接、也没有安装指引。macOS 不会自动把 `.app` 装到 `/Applications`，双击的结果只是"从只读的 dmg 卷里运行"，所以看起来像"打开了但没安装"。挂载核实：`ls /Volumes/灵感` → 仅 `灵感.app`。
+- **影响**：`v0.1.0` 的 macOS dmg（arm64/amd64）；`.zip` 不受影响（解压后仍需用户自行拖入「应用程序」）。另外从只读 dmg 里运行的应用**无法应用内更新**：更新器要就地整包替换，只读卷不可写，会走"引导手动安装"分支。
+- **修复**：新增 `scripts/make-dmg.sh` 统一打包——暂存目录放 `.app` + `Applications → /Applications` 符号链接，生成 UDZO dmg 后**挂载自检**（应用目录、可执行文件、Info.plist、签名、别名五项），任一不满足就删掉产物并以非 0 退出；`ci.yml` / `release.yml` 的 macOS 打包步骤改为调用该脚本；`Makefile` 新增 `make dmg`，`make package-macos-*` 也一并产出 dmg。用户说明补上"双击 dmg → 拖入「应用程序」→ 推出 dmg → 从「应用程序」启动"以及"不要直接在 dmg 里双击运行"的告警。
+- **验证**：本机 `make dmg` → 挂载后卷内为 `灵感.app` + `Applications`（`readlink` = `/Applications`）→ 从卷里复制出来运行 `--version` 报 `v0.1.0`、`--selfcheck` 退出码 0；负例（应用不存在 / 非有效 .app）均以退出码 1 失败且不产出文件。
+- **未回填**：已发布的 `v0.1.0` dmg 仍是旧结构（Release 资产不便替换），修复从下一个版本（v0.1.1 起）生效；v0.1.0 用户的临时办法见 `docs/user-guide.md` §1。
+
 ## 4. 发布操作手册（给使用者）
 
 ```bash

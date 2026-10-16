@@ -7,7 +7,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
+
+	"github.com/sheep-ah/inspiration/internal/sysproc"
+)
+
+const (
+	createDetachedProcess = 0x00000008 // DETACHED_PROCESS：不继承父进程控制台，父进程退出后继续运行
+	createNewProcessGroup = 0x00000200 // CREATE_NEW_PROCESS_GROUP
 )
 
 // applyPlatform（Windows）：
@@ -33,47 +41,20 @@ func applyPlatform(ctx context.Context, opts ApplyOptions) (*ApplyResult, error)
 		opts.WorkDir = os.TempDir()
 	}
 	scriptPath := filepath.Join(opts.WorkDir, fmt.Sprintf("inspiration-update-%d.cmd", time.Now().Unix()))
-	pid := os.Getpid()
-	lower := strings.ToLower(opts.DownloadedPath)
-
-	var method, script string
-	if strings.HasSuffix(lower, "_setup.exe") || strings.HasSuffix(lower, "setup.exe") {
-		method = "nsis-silent"
-		script = fmt.Sprintf(`@echo off
-setlocal
-:wait
-tasklist /FI "PID eq %d" 2>nul | find "%d" >nul
-if not errorlevel 1 (
-  timeout /t 1 /nobreak >nul
-  goto wait
-)
-start "" /wait "%s" /S
-if exist "%s" start "" "%s"
-del "%%~f0"
-`, pid, pid, opts.DownloadedPath, exePath, exePath)
-	} else {
-		method = "portable-swap"
-		script = fmt.Sprintf(`@echo off
-setlocal
-:wait
-tasklist /FI "PID eq %d" 2>nul | find "%d" >nul
-if not errorlevel 1 (
-  timeout /t 1 /nobreak >nul
-  goto wait
-)
-copy /y "%s" "%s" >nul
-if exist "%s" start "" "%s"
-del "%%~f0"
-`, pid, pid, opts.DownloadedPath, exePath, exePath, exePath)
-	}
+	method, script := windowsUpdateScript(os.Getpid(), opts.DownloadedPath, exePath)
 
 	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
 		return nil, fmt.Errorf("无法创建更新脚本：%w", err)
 	}
 	opts.Progress("正在准备重启并完成更新…")
 
-	cmd := exec.Command("cmd", "/c", "start", "", "/min", scriptPath)
-	cmd.SysProcAttr = detachedProcess()
+	// 直接执行脚本（不再用 `start /min`）：脚本内改用 ping 做延时，不需要控制台，
+	// 因此窗口可以完全隐藏，全程不会出现命令行窗口。
+	cmd := exec.Command("cmd", "/c", scriptPath)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: createDetachedProcess | createNewProcessGroup,
+	}
+	sysproc.HideWindow(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("无法启动更新脚本：%w", err)
 	}

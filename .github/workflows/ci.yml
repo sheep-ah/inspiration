@@ -195,14 +195,18 @@ jobs:
           echo "✔ 二进制可正常启动（自检通过）"
         if: runner.os == 'macOS'
 
-      - name: 平台专用测试（Windows：子进程控制台窗口抑制）
+      - name: 平台专用测试（Windows：子进程控制台窗口抑制 + 更新脚本真实执行）
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # internal/sysproc 的用例只在 Windows 上编译：验证 HideWindow 确实设置了
-          # HideWindow(SW_HIDE) 与 CREATE_NO_WINDOW，并且子进程仍能正常执行、回传输出。
+          # 1) internal/sysproc：HideWindow 置上 SW_HIDE + CREATE_NO_WINDOW、子进程仍能执行
           go test ./internal/sysproc/ -count=1 -v
           if ($LASTEXITCODE -ne 0) { throw "sysproc tests failed (exit code $LASTEXITCODE)" }
+          # 2) internal/updater 的 Windows 用例：把生成的更新批处理脚本真跑一遍
+          #    （等待进程退出 → 覆盖/静默安装 → 重启 → 自删）。LF 行尾会让 cmd 的
+          #    goto 错位、脚本碎片化执行，这里会直接失败。
+          go test ./internal/updater/ -run 'TestWindowsUpdateScript' -count=1 -v
+          if ($LASTEXITCODE -ne 0) { throw "windows update script tests failed (exit code $LASTEXITCODE)" }
 
       - name: 冒烟测试（Windows：GUI 子系统无 stdout，校验退出码与版本资源）
         if: runner.os == 'Windows'
